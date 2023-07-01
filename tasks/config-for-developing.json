@@ -1,0 +1,18 @@
+{
+    "task_name": "main site deployment (developing)",
+    "git_repo_url": "git@github.com:Direct-Dev-Ru/http2-nodejs-ddru.git",
+    "git_private_key": "{{$HOME}}/.ssh/id_rsa",
+    "git_start_tag": "v1.0.4",
+    "git_start_tag_file": "/tmp/cdddru/start-tag-file",
+    "git_max_tag": "v1.0.25",
+    "git_branch": "main",
+    "git_tag_prefix": "v",
+    "docker_image": "kuznetcovay/ddru",
+    "local_git_folder": "/tmp/git-local-repo",
+    "git_sub_folder": "/assets/",
+    "target_folder": "/tmp/node/app/",
+    "check_interval": 60,
+    "manifests_k8s": "./k8s-main-site-manifests.yaml",
+    "deployment_name_k8s": "main-site",
+    "namespace_k8s": "test-app"
+}

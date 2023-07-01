@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: continous-deployment-ddru
+  namespace: test-app
+  labels:
+    app: cd-ddru
+    release: v1.0.11
+spec:
+  selector:
+    matchLabels:
+      app: cd-ddru
+  template:
+    metadata:
+      labels:
+        app: cd-ddru
+    spec:
+      containers:
+        - name: main-cdddru
+          # image: docker:20.10.24-cli-alpine3.18
+          image: kuznetcovay/cdddru@sha256:2699fbe60a5c29f3829ce3e1ce3f665545760186d46396b62ba5925c59466bb8
+          # command: ["/bin/sh", "-c", "cp /app/gitcred/id_rsa /root/.ssh/id_rsa && chmod 400 /root/.ssh/id_rsa && tail -f /dev/null"]
+          # command: ["/bin/sh", "-c","sleep 3600"]
+          command: [
+              "/bin/sh",
+              "-c",
+              "cp /app/gitcred/id_rsa /root/.ssh/id_rsa;
+              chmod 400 /root/.ssh/id_rsa;
+              /app/cdddru /app/tasks/config.json",
+            ]
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: dockerconfig
+              mountPath: /root/.docker
+              readOnly: true
+            - name: gitcred
+              mountPath: /app/gitcred
+              readOnly: true
+            - name: kubeconfig
+              mountPath: /root/.kube/
+              readOnly: true
+            - name: site-data
+              mountPath: /app/ext-data
+              subPath: main
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            # allowPrivilegeEscalation: true
+          env:
+            - name: DOCKER_HOST
+              value: tcp://localhost:2375
+
+        - name: dind-cddru
+          image: docker:18.05-dind
+          volumeMounts:
+            - name: dockerconfig
+              mountPath: /root/.docker
+              readOnly: true
+            - name: dind-storage
+              mountPath: /var/lib/docker
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            privileged: true
+            # allowPrivilegeEscalation: true
+      nodeSelector:
+        kubernetes.io/hostname: n150-netbook
+
+      volumes:
+        - name: dockerconfig
+          secret:
+            secretName: dockerhub-cred
+        - name: kubeconfig
+          secret:
+            secretName: kubeconfig
+        - name: gitcred
+          secret:
+            secretName: gitcred
+        - name: dind-storage
+          emptyDir: {}
+        - name: site-data
+          hostPath:
+            path: /mnt/k3snfs/sites
+            type: DirectoryOrCreate
