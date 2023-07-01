@@ -67,6 +67,22 @@ func (l *Logger) Info(msg string) {
 	}
 }
 
+func (l *Logger) InfoJson(msg string) {
+	logger.Info(fmt.Sprint(PrettyJsonEncodeToString(msg)))
+}
+
+func (l *Logger) DebugJson(msg string) {
+	logger.Debug(fmt.Sprint(PrettyJsonEncodeToString(msg)))
+}
+
+func (l *Logger) WarningJson(msg string) {
+	logger.Warning(fmt.Sprint(PrettyJsonEncodeToString(msg)))
+}
+
+func (l *Logger) ErrorJson(msg string) {
+	logger.Error(fmt.Sprint(PrettyJsonEncodeToString(msg)))
+}
+
 func (l *Logger) Error(msg string) {
 	if l.logLevel <= ErrorLevel {
 		l.errorLogger.Printf("\x1b[31;1m%s\x1b[0m\n", msg)
