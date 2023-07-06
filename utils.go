@@ -3,16 +3,50 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 )
+
+// ParseFlags parses the command line args, allowing flags to be
+// specified after positional args.
+func ParseFlags() error {
+	return ParseFlagSet(flag.CommandLine, os.Args[1:])
+}
+
+// ParseFlagSet works like flagset.Parse(), except positional arguments are not
+// required to come after flag arguments.
+func ParseFlagSet(flagset *flag.FlagSet, args []string) error {
+	var positionalArgs []string
+	for {
+		if err := flagset.Parse(args); err != nil {
+			return err
+		}
+		// Consume all the flags that were parsed as flags.
+		args = args[len(args)-flagset.NArg():]
+		if len(args) == 0 {
+			break
+		}
+		// There's at least one flag remaining and it must be a positional arg since
+		// we consumed all args that were parsed as flags. Consume just the first
+		// one, and retry parsing, since subsequent args may be flags.
+		positionalArgs = append(positionalArgs, args[0])
+		args = args[1:]
+	}
+	// Parse just the positional args so that flagset.Args()/flagset.NArgs()
+	// return the expected value.
+	// Note: This should never return an error.
+	return flagset.Parse(positionalArgs)
+}
 
 func isStringEmpty(s string) bool {
 	return len(s) == 0
 }
+
 func isStringNotEmpty(s string) bool {
 	return !(len(s) == 0)
 }
@@ -39,8 +73,8 @@ func getEnvVar(varName, defValue string) string {
 
 // CheckArgs should be used to ensure the right command line arguments are
 // passed before executing an example.
-func CheckArgs(isExit bool, arg ...string) {
-	if len(os.Args) < len(arg)+1 {
+func CheckArgs(logger *Logger, isExit bool, arg ...string) {
+	if len(os.Args) < len(arg)+1 && !isStringNotEmpty(arg[1]) {
 		PrintWarning(logger, "Usage: %s %s", os.Args[0], strings.Join(arg, " "))
 		if isExit {
 			os.Exit(1)
@@ -83,4 +117,24 @@ func runExternalCmd(stdinString, errorPrefix string, commandName string,
 		return "", fmt.Errorf("%v: %v < details: (%v) >", errorPrefix, err, errBuf.String())
 	}
 	return outBuf.String(), nil
+}
+
+func replaceEnvs(content string) (string, error) {
+	contentString := strings.TrimSpace(content)
+	pattern := `{{\$(.*?)}}`
+	// Compile the regular expression
+	regex, err := regexp.Compile(pattern)
+	if err != nil {
+		return content, err
+	}
+	// Find all matches in the text
+	matches := regex.FindAllStringSubmatch(contentString, -1)
+
+	// iterate through matches
+	for _, match := range matches {
+		replacedText := match[0]
+		replacingText := getEnvVar(match[1], "")
+		contentString = strings.ReplaceAll(contentString, replacedText, replacingText)
+	}
+	return contentString, nil
 }

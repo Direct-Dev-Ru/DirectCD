@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/user"
@@ -10,48 +11,127 @@ import (
 	"strings"
 )
 
-func startup() (Config, error) {
-	var configPath string
-	var config Config = Config{}
+func startup() ([]Config, error) {
 
-	usr, err := user.Current()
+	// Define named flags
+	fsTaskFolder := flag.String("taskfolder", "", "Input directory with tasks to execute")
+	flag.StringVar(fsTaskFolder, "t", "", "Input directory with tasks to execute (taskfolder)")
+
+	fsTaskFile := flag.String("taskfile", "", "Input file with specified task")
+	flag.StringVar(fsTaskFile, "f", "", "Input file with specified task (taskfile)")
+
+	fsTaskName := flag.String("taskname", "", "Task name in specified folder or task file")
+	flag.StringVar(fsTaskName, "n", "", "Task name in specified folder or task file (taskname)")
+
+	fnDelaySec := flag.Int("delay", 30, "Time to pause befor next task will starts")
+	flag.IntVar(fnDelaySec, "d", 30, "Time to pause befor next task will starts (delay)")
+
+	var fnVerbose bVerbose
+	flag.BoolVar((*bool)(&fnVerbose), "verbose", false, "verbose output")
+	flag.BoolVar((*bool)(&fnVerbose), "v", false, "verbose output")
+
+	tasksConfigs := make([]Config, 0)
+	err := ParseFlags()
 	if err != nil {
-		return Config{}, fmt.Errorf("failed to get current user: %v", err)
+		return tasksConfigs, fmt.Errorf("failed to parse cmdline args and named parameters: %v", err)
 	}
 
-	// determinate configPath
-	if len(os.Args) > 1 {
-		configPath = os.Args[1]
-	} else {
-		executable, err := os.Executable()
+	// if len(os.Args) == 1 {
+	// 	flag.Usage()
+	// 	os.Exit(1)
+	// }
+
+	// Parse positional arguments
+	args := flag.Args()
+	if len(args) > 0 {
+		*fsTaskFolder = args[0]
+	}
+	if len(args) > 1 {
+		*fsTaskFile = args[1]
+	}
+	if len(args) > 2 {
+		*fsTaskName = args[2]
+	}
+	if len(args) == 0 && len(*fsTaskFile) == 0 {
+		usr, err := user.Current()
 		if err != nil {
-			return Config{}, fmt.Errorf("failed to get executable: %v", err)
+			return tasksConfigs, fmt.Errorf("failed to get current user: %v", err)
+		}
+		executable, err := os.Executable()
+		fmt.Println(executable)
+		if err != nil {
+			return tasksConfigs, fmt.Errorf("failed to get executable: %v", err)
 		}
 
-		if executable == "go" {
+		if strings.Contains(executable, "go-build") {
 			// Running as a script using 'go run'
-			configPath = filepath.Join(usr.HomeDir, ".config", "ddru-cd-tool", "config.json")
-			os.MkdirAll(configPath, os.ModePerm)
+			*fsTaskFile = filepath.Join(usr.HomeDir, ".config", "ddru-cd-tool", "config.json")
+			os.MkdirAll(filepath.Dir(*fsTaskFile), os.ModePerm)
 			if err != nil {
-				return Config{}, fmt.Errorf("failed to create config path for current user: %v", err)
+				return tasksConfigs, fmt.Errorf("failed to create config path for current user: %v", err)
 			}
 		} else {
 			// Running as a binary
-			configPath = filepath.Join(filepath.Dir(executable), "config.json")
+			*fsTaskFile = filepath.Join(filepath.Dir(executable), "config.json")
 		}
 	}
 
+	fmt.Println("fsTaskFolder:", *fsTaskFolder, "\tfsTaskFile:", *fsTaskFile, "\tfsTaskName:", *fsTaskName)
+
+	if len(*fsTaskFile) == 0 && len(*fsTaskFolder) > 0 {
+		// walk through specified Dir and make array of Configs
+		return tasksConfigs, nil
+	}
+
+	// if path to config file specified
+	if len(*fsTaskFile) > 0 {
+
+		var configPath string
+		var config Config = Config{}
+
+		// calculating configPath
+		configPath = filepath.Join(*fsTaskFile)
+		if len(*fsTaskFolder) > 0 {
+			configPath = filepath.Join(*fsTaskFolder, *fsTaskFile)
+		}
+		config, err := getOneConfig(configPath)
+		if err != nil {
+			return tasksConfigs, err
+		}
+		tasksConfigs = append(tasksConfigs, config)
+	}
+	return tasksConfigs, nil
+}
+
+func getOneConfig(configPath string) (Config, error) {
 	// Read the config file
 	configFileBytes, err := os.ReadFile(configPath)
 
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return Config{}, fmt.Errorf("failed to read config file: %v", err)
+		return Config{}, fmt.Errorf("failed to read config file %s: %v", configPath, err)
 	} else if errors.Is(err, os.ErrNotExist) {
+
 		return DefaultConfig, nil
 	}
 
-	configFile := strings.ReplaceAll(string(configFileBytes), "{{$HOME}}", getEnvVar("HOME", "/root"))
+	// configFile := strings.TrimSpace(string(configFileBytes))
+	// pattern := `{{\$(.*?)}}`
 
+	// // Compile the regular expression
+	// regex := regexp.MustCompile(pattern)
+	// // Find all matches in the text
+	// matches := regex.FindAllStringSubmatch(configFile, -1)
+
+	// // Print the matches
+	// for _, match := range matches {
+	// 	replacedText := match[0]
+	// 	replacingText := getEnvVar(match[1], "")
+	// 	configFile = strings.ReplaceAll(configFile, replacedText, replacingText)
+	// }
+
+	configFile, _ := replaceEnvs(string(configFileBytes))
+
+	var config Config
 	// Parse the config file
 	err = json.Unmarshal([]byte(configFile), &config)
 	if err != nil {

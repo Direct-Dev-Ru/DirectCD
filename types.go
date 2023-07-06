@@ -6,6 +6,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -17,8 +18,13 @@ type Config struct {
 	GIT_BRANCH         string `json:"git_branch"`
 	GIT_TAG_PREFIX     string `json:"git_tag_prefix"`
 	GIT_START_TAG_FILE string `json:"git_start_tag_file"`
+	DOCKER_FILE        string `json:"docker_file"`
 	DOCKER_IMAGE       string `json:"docker_image"`
+	DOCKER_SERVER      string `json:"docker_server"`
+	DOCKER_USER        string `json:"docker_user"`
+	DOCKER_TOKEN       string `json:"docker_token"`
 	LOCAL_GIT_FOLDER   string `json:"local_git_folder"`
+	DO_SUBFOLDER_SYNC  bool   `json:"do_subfolder_sync"`
 	// this subfolder from LOCAL_GIT_FOLDER will be rsynced into TARGET_FOLDER
 	GIT_SUB_FOLDER string `json:"git_sub_folder"`
 	// in this place subfolder from LOCAL_GIT_FOLDER will be rsynced
@@ -28,6 +34,7 @@ type Config struct {
 	DEPLOYMENT_NAME_K8s string `json:"deployment_name_k8s"`
 	NAMESPACE_K8s       string `json:"namespace_k8s"`
 }
+type bVerbose bool
 
 var USER *user.User
 var err error
@@ -55,8 +62,13 @@ func init() {
 		GIT_BRANCH:          getEnvVar("GIT_BRANCH", "main"),
 		GIT_TAG_PREFIX:      getEnvVar("GIT_TAG_PREFIX", "v"),
 		GIT_START_TAG_FILE:  getEnvVar("GIT_START_TAG_FILE", "/usr/local/cdddru/start-tag"),
+		DOCKER_FILE:         getEnvVar("DOCKER_FILE", "Dockerfile"),
 		DOCKER_IMAGE:        getEnvVar("DOCKER_IMAGE", "docker.io/kuznetcovay/ddru"),
+		DOCKER_SERVER:       getEnvVar("DOCKER_SERVER", "https://index.docker.io/v1/"),
+		DOCKER_USER:         getEnvVar("DOCKER_USER", ""),
+		DOCKER_TOKEN:        getEnvVar("DOCKER_TOKEN", ""),
 		LOCAL_GIT_FOLDER:    getEnvVar("LOCAL_GIT_FOLDER", "/tmp/git_local_repo"),
+		DO_SUBFOLDER_SYNC:   strings.ToLower(getEnvVar("LOCAL_GIT_FOLDER", "false")) == "true",
 		GIT_SUB_FOLDER:      getEnvVar("GIT_SUB_FOLDER", ""),                                //if empty - all repo to rsync
 		TARGET_FOLDER:       getEnvVar("TARGET_FOLDER", filepath.Join(USER.HomeDir, "app")), //where web app is
 		CHECK_INTERVAL:      checkInterval,
@@ -65,4 +77,27 @@ func init() {
 		NAMESPACE_K8s:       getEnvVar("NAMESPACE_K8S", "test-app"),
 	}
 
+}
+
+func (verbose bVerbose) vprintln(v ...interface{}) {
+	if verbose {
+		fmt.Println(v...)
+	}
+}
+
+type ErrorLine struct {
+	Error       string      `json:"error"`
+	ErrorDetail ErrorDetail `json:"errorDetail"`
+}
+
+type ErrorDetail struct {
+	Message string `json:"message"`
+}
+
+type DockerAuths struct {
+	Auths map[string]DockerAuth `json:"auths"`
+}
+
+type DockerAuth struct {
+	Auth string `json:"auth"`
 }

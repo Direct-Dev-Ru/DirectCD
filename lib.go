@@ -9,6 +9,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	git "github.com/go-git/go-git/v5"
+	plumbing "github.com/go-git/go-git/v5/plumbing"
 )
 
 // get current image tag from k8s deployment - we will run kubectl ...
@@ -35,7 +38,7 @@ func getImageTag(cfg Config) (string, error) {
 	// outputString = testOutput
 
 	// Define the regular expression pattern
-	pattern := dockerImage + `:` + `v?(\d{1,2}\.\d{1,2}\.\d{1,2})`
+	pattern := dockerImage + `:` + `(` + cfg.GIT_TAG_PREFIX + `?\d{1,2}\.\d{1,2}\.\d{1,2})`
 	// Compile the regular expression
 	regex := regexp.MustCompile(pattern)
 
@@ -50,7 +53,6 @@ func getImageTag(cfg Config) (string, error) {
 
 	// return "", fmt.Errorf("failed to match image tag in given deployment: %v", "no match found")
 	return "v0.0.0", nil
-
 }
 
 // ----------------- //
@@ -81,24 +83,58 @@ func convertTagToNumeric(tag, prefix string) (int64, error) {
 	return numeric, nil
 }
 
-func getMaxTag(tags []string, maxPossibleTag string, prefix string) (int64, string, error) {
-	var tagString string = "v1.0.0"
-	if isStringEmpty(maxPossibleTag) {
-		maxPossibleTag = "v99.99.99"
+func getCommitHashByTag(gitRepository *git.Repository, tag string) (string, error) {
+	refTag, err := gitRepository.Tag(tag)
+	if err != nil {
+		return "", err
 	}
-	maxTag, _ := convertTagToNumeric(tagString, prefix)
-	nMaxPossibleTag, _ := convertTagToNumeric(maxPossibleTag, prefix)
+	tagObj, err := gitRepository.TagObject(refTag.Hash())
+	if err != nil {
+		return "", err
+	}
+	// Resolve the commit hash from the tag reference
+	commitHash := tagObj.Target
+	return commitHash.String(), nil
+	// PrintInfo(logger, "Tag '%s' has commit hash %s", "v1.0.11", commitHash.String())
+}
+
+func getTagsFromGitRepo(gitRepository *git.Repository, tagPrefix string) ([]string, error) {
+
+	var repoTags []string
+	repoTags = make([]string, 0, 4)
+
+	tagRefs, err := gitRepository.Tags()
+	if err != nil {
+		return nil, err
+	}
+	// Iterate over the tags and print their names
+	tagRefs.ForEach(func(tagRef *plumbing.Reference) error {
+		if strings.HasPrefix(tagRef.Name().Short(), tagPrefix) {
+			repoTags = append(repoTags, tagRef.Name().Short())
+		}
+		return nil
+	})
+	return repoTags, nil
+}
+
+func getMaxTag(tags []string, maxTagValue string, prefix string) (int64, string, error) {
+	var tagString string = "v1.0.0"
+	if isStringEmpty(maxTagValue) {
+		maxTagValue = "v99.99.99"
+	}
+	nMaxTag, _ := convertTagToNumeric(tagString, prefix)
+	nMaxTagValue, _ := convertTagToNumeric(maxTagValue, prefix)
 	for _, tag := range tags {
 		currentNumTag, err := convertTagToNumeric(tag, prefix)
 		if err != nil {
 			return -1, "", err
 		}
-		if currentNumTag > maxTag && currentNumTag < nMaxPossibleTag {
-			maxTag = currentNumTag
+		if currentNumTag > nMaxTag && currentNumTag <= nMaxTagValue {
+			nMaxTag = currentNumTag
 			tagString = tag
 		}
 	}
-	return maxTag, tagString, nil
+	return nMaxTag, tagString, nil
 }
 
 func compareTwoTags(tag1, tag2, prefix string) (int, error) {
@@ -170,17 +206,4 @@ func generateManifest(templatePath string, data interface{}) (string, error) {
 	}
 	resultString = buf.String()
 	return resultString, nil
-}
-
-func applyManifest(manifest string) error {
-	// Apply the Kubernetes manifest using the 'kubectl' command
-	cmd := exec.Command("kubectl", "apply", "-f", "-")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = strings.NewReader(manifest)
-	err := cmd.Run()
-	if err != nil {
-		return fmt.Errorf("kubectl apply command failed: %v", err)
-	}
-	return nil
 }

@@ -27,18 +27,19 @@ type Logger struct {
 }
 
 func NewLogger(out io.Writer, outError io.Writer, level LogLevel, taskName string) *Logger {
+	if outError == nil {
+		outError = out
+	}
+
 	debugColor := color.New(color.FgHiCyan).SprintFunc()
 	infoColor := color.New(color.FgWhite).SprintFunc()
 	warnColor := color.New(color.FgHiYellow).SprintFunc()
 	errorColor := color.New(color.FgHiRed).SprintFunc()
 
-	debugLogger := log.New(out, debugColor("TASK --> "+taskName+" -| LEVEL-DEBUG: "), log.Flags()|log.Llongfile)
-	warnLogger := log.New(out, warnColor("TASK --> "+taskName+" -| LEVEL-WARNING: "), log.LstdFlags)
-	infoLogger := log.New(out, infoColor("TASK --> "+taskName+" -| LEVEL-INFO: "), log.LstdFlags)
-	if outError == nil {
-		outError = out
-	}
-	errorLogger := log.New(outError, errorColor("TASK: "+taskName+" -| LEVEL-ERROR: "), log.LstdFlags)
+	debugLogger := log.New(out, debugColor("TASK --> "+taskName+" -| DEBUG: "), log.Flags()|log.Llongfile)
+	warnLogger := log.New(out, warnColor("TASK --> "+taskName+" -| WARNING: "), log.LstdFlags)
+	infoLogger := log.New(out, infoColor("TASK --> "+taskName+" -| INFO: "), log.LstdFlags)
+	errorLogger := log.New(outError, errorColor("TASK --> "+taskName+" -| ERROR: "), log.LstdFlags)
 
 	return &Logger{
 		debugLogger: debugLogger,
@@ -68,19 +69,32 @@ func (l *Logger) Info(msg string) {
 }
 
 func (l *Logger) InfoJson(msg string) {
-	logger.Info(fmt.Sprint(PrettyJsonEncodeToString(msg)))
+	jsonMsg, err := PrettyJsonEncodeToString(msg)
+	if err != nil {
+		l.Error(err.Error())
+	} else {
+		l.Info(jsonMsg)
+	}
+
 }
 
 func (l *Logger) DebugJson(msg string) {
-	logger.Debug(fmt.Sprint(PrettyJsonEncodeToString(msg)))
+	jsonMsg, _ := PrettyJsonEncodeToString(msg)
+	l.Debug(jsonMsg)
 }
 
 func (l *Logger) WarningJson(msg string) {
-	logger.Warning(fmt.Sprint(PrettyJsonEncodeToString(msg)))
+	jsonMsg, _ := PrettyJsonEncodeToString(msg)
+	l.Warning(jsonMsg)
 }
 
 func (l *Logger) ErrorJson(msg string) {
-	logger.Error(fmt.Sprint(PrettyJsonEncodeToString(msg)))
+	jsonMsg, err := PrettyJsonEncodeToString(msg)
+	if err != nil {
+		l.Error(err.Error())
+	} else {
+		l.Error(jsonMsg)
+	}
 }
 
 func (l *Logger) Error(msg string) {
@@ -99,6 +113,10 @@ func CheckIfError(logger *Logger, err error, isExit bool) {
 	if isExit {
 		os.Exit(1)
 	}
+}
+
+func PrintDebug(logger *Logger, format string, args ...interface{}) {
+	logger.Debug(fmt.Sprintf(format, args...))
 }
 
 func PrintInfo(logger *Logger, format string, args ...interface{}) {
