@@ -64,7 +64,7 @@ func PrintDockerResponse(rd io.Reader, logger *Logger) error {
 			return err
 		}
 		// fmt.Println("replaced:", lastLineReplaced)
-		logger.Info(lastLineReplaced)
+		logger.Debug(lastLineReplaced)
 		// fmt.Println("original:", lastLineReplaced)
 	}
 

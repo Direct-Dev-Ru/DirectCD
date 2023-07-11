@@ -7,3 +7,8 @@ DOCKER_SERVER=$(kubectl get secret dockerhub-token -n test-app -o jsonpath='{.da
 export DOCKER_TOKEN
 export DOCKER_USER
 export DOCKER_SERVER
+
+DOCKER_BUILDKIT=0
+export DOCKER_BUILDKIT
+
+kubectl get secret kubeconfig -n test-app -o jsonpath='{.data.config}' | base64 --decode | cat >| .kubeconfig

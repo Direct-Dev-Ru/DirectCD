@@ -19,5 +19,6 @@
     "check_interval": 120,
     "manifests_k8s": "/app/manifests/k8s-main-site-manifests.yaml",
     "deployment_name_k8s": "main-site",
-    "namespace_k8s": "test-app"
+    "namespace_k8s": "test-app",
+    "context_k8s": "default"
 }

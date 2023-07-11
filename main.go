@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -15,10 +16,17 @@ import (
 
 func main() {
 	var logger *Logger
+	var logLevel LogLevel = InfoLevel
 	configs, err := startup()
+	if fbVerbose {
+		logLevel = DebugLevel
+	}
 	CheckIfError(logger, err, true)
 	config := configs[0]
-	logger = NewLogger(os.Stdout, os.Stderr, DebugLevel, config.TASK_NAME)
+	logger = NewLogger(os.Stdout, os.Stderr, logLevel, config.TASK_NAME)
+
+	inlineTest(false, config, logger, true)
+
 	logger.Debug(fmt.Sprint(PrettyJsonEncodeToString(config)))
 
 	// we trying read saved file with tag applyed if it is not exists we try to detect image version from kubectl
@@ -121,24 +129,22 @@ func main() {
 	gitCurrentTag := startImageTag
 	PrintInfo(logger, "start checking for updates ... start git tag version is %s", gitCurrentTag)
 
-	// gitCurrentTag := "v0.0.3"
-	// currentTagsCommitHash, err := getCommitHashByTag(gitRepository, gitCurrentTag)
-	// if err != nil {
-	// 	PrintError(logger, "error for searchig hash of tag %s: %v", gitCurrentTag, err)
-	// }
-	// PrintInfo(logger, "Tag '%s' has commit hash %s", gitCurrentTag, currentTagsCommitHash)
-
-	// os.Exit(0)
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		CheckIfError(logger, err, true)
 	}
-
-	for {
+	// how much times retruyin apply manifest
+	retryApply := 0
+	strMaxTag := ""
+	nMaxTag := int64(0)
+	nCount := math.MaxInt
+	if fbOnce {
+		nCount = 1
+	}
+	for i := 0; i < nCount; i++ {
 		// retrieving the branch being pointed by HEAD
 		repoRef, err := gitRepository.Head()
 		CheckIfError(logger, err, true)
-
 		// grtting the commit hash referenced by current tag
 		currentTagsCommitHash, _ := getCommitHashByTag(gitRepository, gitCurrentTag)
 
@@ -160,9 +166,14 @@ func main() {
 		// getting tags from repository after updating
 		repoTags, err := getTagsFromGitRepo(gitRepository, config.GIT_TAG_PREFIX)
 		CheckIfError(logger, err, true)
-
-		nMaxTag, strMaxTag, err := getMaxTag(repoTags, config.GIT_MAX_TAG, config.GIT_TAG_PREFIX)
+		// here we getting max tag in updated repo to apply
+		nMaxTagCandidate, strMaxTagCandidate, err := getMaxTag(repoTags, config.GIT_MAX_TAG, config.GIT_TAG_PREFIX)
 		CheckIfError(logger, err, true)
+
+		if retryApply > 0 && nMaxTagCandidate != nMaxTag {
+			retryApply = 0
+		}
+		nMaxTag, strMaxTag = nMaxTagCandidate, strMaxTagCandidate
 
 		bDoUpgrade := false
 
@@ -178,6 +189,7 @@ func main() {
 		PrintDebug(logger, "\nstrMaxTag: %s, strMaxTagCommitHash: %s,	gitCurrentTag: %s, currentTagsCommitHash: %s, bDoUpgrade: %v", strMaxTag, strMaxTagCommitHash,
 			gitCurrentTag, currentTagsCommitHash, bDoUpgrade)
 
+		totalWaitSeconds := 0
 		// if do upgrade
 		if bDoUpgrade {
 			PrintInfo(logger, "starting upgrade for %s release (commit hash: %s)...", strMaxTag, strMaxTagCommitHash)
@@ -200,6 +212,7 @@ func main() {
 			PrintInfo(logger, "successfully checked out to tag %s hash: %v\n", strMaxTag, refTag)
 
 			imageNameTag := config.DOCKER_IMAGE + ":" + strMaxTag
+			PrintInfo(logger, "starting build %s docker image", imageNameTag)
 			// building docker image
 			err = dockerImageBuild(cli, imageNameTag, config.LOCAL_GIT_FOLDER, config.DOCKER_FILE, logger)
 			if err != nil {
@@ -207,70 +220,23 @@ func main() {
 				CheckIfError(logger, newError, true)
 			}
 			// pushing docker image
+			PrintInfo(logger, "starting pushing %s docker image", imageNameTag)
 			err = dockerImagePush(cli, imageNameTag, config, logger)
 			if err != nil {
 				newError := fmt.Errorf("failed to push docker image %s : %v", imageNameTag, err)
 				CheckIfError(logger, newError, true)
 			}
-
-			// old code through external command docker
-			// reading Dockerfile to build app image
-
-			// fullPathToDockerfile := config.DOCKER_FILE
-			// if !strings.HasPrefix(fullPathToDockerfile, "/") {
-			// 	fullPathToDockerfile = filepath.Join(config.LOCAL_GIT_FOLDER, config.DOCKER_FILE)
-			// }
-			// dockerfile, err := os.ReadFile(fullPathToDockerfile)
-			// if err != nil {
-			// 	CheckIfError(logger, err, true)
-			// }
-
-			//building Docker image
-			// outDockerBuild, err := runExternalCmd(string(dockerfile), "error while building docker image "+imageNameTag,
-			// 	"docker", "build", "-t", imageNameTag, "-f", "-", config.LOCAL_GIT_FOLDER)
-			// CheckIfError(logger, err, true)
-			// PrintInfo(logger, "docker build successfull. output of docker build command for image %s: %v", imageNameTag, outDockerBuild)
-
-			// var errThread bytes.Buffer
-
-			// buildCmd := exec.Command("docker", "build", "-t", imageNameTag, "-f", "-", config.LOCAL_GIT_FOLDER)
-			// buildCmd.Stdin = bytes.NewReader(dockerfile)
-			// buildCmd.Stderr = &errThread
-			// buildCmd.Stdout = os.Stdout
-
-			// err = buildCmd.Run()
-			// if err != nil {
-			// 	errBuildCmd := fmt.Errorf("failed to execute docker build command: %v (%v)", err, errThread.String())
-			// 	CheckIfError(logger, errBuildCmd, true)
-			// }
-
-			// pushing Docker image to a registry
-
-			// outDockerPush, err := runExternalCmd(string(dockerfile), "error while pushing docker image "+imageNameTag,
-			// 	"docker", "push", imageNameTag)
-			// CheckIfError(logger, err, true)
-			// PrintInfo(logger, "output of docker push command for image %s: %v", imageNameTag, outDockerPush)
-
-			// pushCmd := exec.Command("docker", "push", imageNameTag)
-			// pushCmd.Stdout = os.Stdout
-			// pushCmd.Stderr = &errThread
-
-			// err = pushCmd.Run()
-			// if err != nil {
-			// 	errPushCmd := fmt.Errorf("failed to push docker image %s to registry: %v (%v)",
-			// 		imageNameTag, err, errThread.String())
-			// 	CheckIfError(logger, errPushCmd, true)
-			// }
-
-			PrintInfo(logger, "docker image %v builded and pushed successfully", imageNameTag)
+			PrintInfo(logger, "docker image %s builded and pushed successfully", imageNameTag)
 
 			// first thing we next should do - rsync data on external path if specified
 			if config.DO_SUBFOLDER_SYNC {
+				PrintInfo(logger, "syncing subfolders for release %s", imageNameTag)
 				err = rsync(config.TARGET_FOLDER, filepath.Join(config.LOCAL_GIT_FOLDER, config.GIT_SUB_FOLDER))
 				CheckIfError(logger, err, true)
 			}
 
 			// now it's time to get manifest for k8s deployment
+			PrintInfo(logger, "start applying release %s", imageNameTag)
 			manifestToApply, err := generateManifest(config.MANIFESTS_K8S,
 				struct {
 					Release   string
@@ -283,19 +249,60 @@ func main() {
 				})
 			CheckIfError(logger, err, true)
 
-			//  and now we are ready to apply it in our cluster
-			outManifestApply, err := runExternalCmd(manifestToApply, "error while applying manifest",
-				"kubectl", "apply", "-f", "-", "--dry-run=client")
+			// switch to context
+			_, err = runExternalCmd("", "error while switching to context "+config.CONTEXT_K8s, "kubectx", config.CONTEXT_K8s)
 			CheckIfError(logger, err, true)
-			PrintInfo(logger, "release %s applyed successfully \n (%v)", strMaxTag, outManifestApply)
 
-			gitCurrentTag = strMaxTag
-			err = os.WriteFile(pathToStoreStartTag, []byte(gitCurrentTag), 0755)
-			CheckIfError(logger, err, false)
+			//  and now we are ready to apply it in our cluster
+			// command := []string{"kubectl", "apply", "-f", "-", "--dry-run=client")}
+			command := []string{"kubectl", "apply", "-f", "-"}
+			outManifestApply, err := runExternalCmd(manifestToApply, "error while applying manifest", command[0], command[1:]...)
+			CheckIfError(logger, err, true)
 
+			// well we need wait some time for changes take effect
+			if config.CHECK_INTERVAL < 120 {
+				config.CHECK_INTERVAL = 120
+			}
+			checkIntervals := getIntervals(config.CHECK_INTERVAL)
+
+			isReady := false
+			retryApply += 1
+			for i := 0; i < 5; i++ {
+				intervalToWaitSeconds := checkIntervals[i]
+				time.Sleep(time.Duration(intervalToWaitSeconds) * time.Second)
+				totalWaitSeconds += intervalToWaitSeconds
+				// now check applying
+				isReady, _ = getDeploymentReadinessStatus(config, imageNameTag)
+				if isReady {
+					break
+				}
+				PrintInfo(logger, "kubernetes manifests are not apllying yet for release %s", imageNameTag)
+			}
+
+			if isReady {
+				currentClusterImageTag, errK8s = getImageTag(config)
+				CheckIfError(logger, errK8s, true)
+
+				if currentClusterImageTag == strMaxTag {
+					PrintInfo(logger, "release %s applyed successfully \n%v", strMaxTag, outManifestApply)
+					gitCurrentTag = strMaxTag
+					err = os.WriteFile(pathToStoreStartTag, []byte(gitCurrentTag), 0755)
+					CheckIfError(logger, err, false)
+					retryApply = 0
+				} else {
+					PrintInfo(logger, "release %s DO NOT applyed successfully", strMaxTag)
+					PrintInfo(logger, "starting attempt number %v to apply release %s", retryApply+1, strMaxTag)
+				}
+			}
+
+			if retryApply > 3 {
+				CheckIfError(logger,
+					fmt.Errorf("release %s DO NOT applyed successfully while 3 attempts. exiting", strMaxTag), true)
+			}
 		}
-
-		time.Sleep(time.Duration(config.CHECK_INTERVAL) * time.Second)
+		if !fbOnce {
+			time.Sleep(time.Duration(config.CHECK_INTERVAL-totalWaitSeconds) * time.Second)
+		}
 	}
 
 }

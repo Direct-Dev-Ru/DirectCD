@@ -14,17 +14,39 @@ import (
 	plumbing "github.com/go-git/go-git/v5/plumbing"
 )
 
+func getDeploymentReadinessStatus(config Config, imageNameTag string) (bool, error) {
+	// kubectl get deployment main-site  -n test-app | grep main-site | awk '{print $2}'
+	pipeCommands := [][]string{
+		{"kubectx", config.CONTEXT_K8s},
+		{"kubectl", "get", "deployment", config.DEPLOYMENT_NAME_K8s, "-n", "test-app", "-o", "wide"},
+		{"grep", config.DEPLOYMENT_NAME_K8s + ".*" + imageNameTag},
+		{"awk", `{print $2}`},
+	}
+	out, err := runExternalCmdsPiped("", "pipe error", pipeCommands)
+	if err != nil || len(out) == 0 {
+		return false, nil
+	}
+	replicasSlice := strings.Split(out, "/")
+	if len(replicasSlice) != 2 {
+		return false, nil
+	}
+	return strings.TrimSpace(replicasSlice[0]) == strings.TrimSpace(replicasSlice[1]), nil
+}
+
 // get current image tag from k8s deployment - we will run kubectl ...
 func getImageTag(cfg Config) (string, error) {
 
 	var deployment, namespace, dockerImage = cfg.DEPLOYMENT_NAME_K8s, cfg.NAMESPACE_K8s, cfg.DOCKER_IMAGE
 
+	_, err := runExternalCmd("", "error while switching to context "+cfg.CONTEXT_K8s, "kubectx", cfg.CONTEXT_K8s)
+	if err != nil {
+		return "", fmt.Errorf("failed to switch context: %v (%v)", cfg.CONTEXT_K8s, err)
+	}
 	// Create a buffer for stderr
 	var errThread bytes.Buffer
 
 	// Build the kubectl command
 	cmd := exec.Command("kubectl", "get", "deployment", deployment, "-n", namespace, "-o", "jsonpath={.spec.template.spec.containers}")
-
 	// Run the kubectl command and capture the output
 	cmd.Stderr = &errThread
 	output, err := cmd.Output()
@@ -34,8 +56,6 @@ func getImageTag(cfg Config) (string, error) {
 
 	// Trim leading/trailing spaces and newlines from the output
 	outputString := strings.TrimSpace(string(output))
-
-	// outputString = testOutput
 
 	// Define the regular expression pattern
 	pattern := dockerImage + `:` + `(` + cfg.GIT_TAG_PREFIX + `?\d{1,2}\.\d{1,2}\.\d{1,2})`
@@ -47,11 +67,9 @@ func getImageTag(cfg Config) (string, error) {
 
 	// Check if a match was found
 	if len(matches) > 0 {
-		// fmt.Println("Match found:", matches[1]) // index 1 for the captured group
 		return matches[1], nil
 	}
 
-	// return "", fmt.Errorf("failed to match image tag in given deployment: %v", "no match found")
 	return "v0.0.0", nil
 }
 

@@ -11,6 +11,9 @@ import (
 	"strings"
 )
 
+var fbOnce bool
+var fbVerbose bVerbose
+
 func startup() ([]Config, error) {
 
 	// Define named flags
@@ -26,9 +29,10 @@ func startup() ([]Config, error) {
 	fnDelaySec := flag.Int("delay", 30, "Time to pause befor next task will starts")
 	flag.IntVar(fnDelaySec, "d", 30, "Time to pause befor next task will starts (delay)")
 
-	var fnVerbose bVerbose
-	flag.BoolVar((*bool)(&fnVerbose), "verbose", false, "verbose output")
-	flag.BoolVar((*bool)(&fnVerbose), "v", false, "verbose output")
+	flag.BoolVar((*bool)(&fbVerbose), "verbose", false, "verbose output")
+	flag.BoolVar((*bool)(&fbVerbose), "v", false, "verbose output")
+
+	flag.BoolVar(&fbOnce, "oncerun", false, "once running and exit")
 
 	tasksConfigs := make([]Config, 0)
 	err := ParseFlags()
@@ -136,6 +140,9 @@ func getOneConfig(configPath string) (Config, error) {
 	err = json.Unmarshal([]byte(configFile), &config)
 	if err != nil {
 		return Config{}, fmt.Errorf("failed to parse config file: %v", err)
+	}
+	if config.CHECK_INTERVAL < 120 {
+		config.CHECK_INTERVAL = 120
 	}
 	return config, nil
 }

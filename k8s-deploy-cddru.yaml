@@ -1,3 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cdddru-nfs
+  namespace: test-app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-client
+  resources:
+    requests:
+      storage: 512Mi
+---
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,39 +30,82 @@ spec:
         app: cd-ddru
     spec:
       containers:
-        - name: main-cdddru
-          # image: docker:20.10.24-cli-alpine3.18
-          image: kuznetcovay/cdddru@sha256:2699fbe60a5c29f3829ce3e1ce3f665545760186d46396b62ba5925c59466bb8
-          # command: ["/bin/sh", "-c", "cp /app/gitcred/id_rsa /root/.ssh/id_rsa && chmod 400 /root/.ssh/id_rsa && tail -f /dev/null"]
-          # command: ["/bin/sh", "-c","sleep 3600"]
+        - name: dind-cddru
+          image: docker:18.05-dind
           resources:
             requests:
               cpu: 100m
               memory: 256Mi
             limits:
               cpu: 512m
-              memory: 512Mi
-          command: [
-              "/bin/sh",
-              "-c",
-              "cp /app/gitcred/id_rsa /root/.ssh/id_rsa;
-              chmod 400 /root/.ssh/id_rsa;
-              /app/cdddru /app/tasks/ /app/tasks/config.json",
-            ]
-          imagePullPolicy: Always
+              memory: 756Mi
           volumeMounts:
             - name: dockerconfig
               mountPath: /root/.docker
               readOnly: true
+            - name: dind-storage
+              mountPath: /var/lib/docker
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            privileged: true
+            # allowPrivilegeEscalation: true
+
+        - name: main-cdddru
+          # image: docker:20.10.24-cli-alpine3.18
+          # image: kuznetcovay/cdddru@sha256:c570517875a89e4f55bc8eb76dd554280a787c8aa4408a65083f58d27efd4caa
+          image: kuznetcovay/cdddru:v1.0.13
+          # command: ["/bin/sh", "-c", "cp /app/gitcred/id_rsa /root/.ssh/id_rsa && chmod 400 /root/.ssh/id_rsa && tail -f /dev/null"]
+          # command: ["/bin/sh", "-c","sleep 3600"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 512m
+              memory: 512Mi
+          command: [
+              "/bin/sh",
+              "-c",
+              "mkdir -p /root/.ssh;
+              cp /app/gitcred/id_rsa /root/.ssh/id_rsa;              
+              mkdir -p /root/.docker;
+              cp /app/dockerconfig/config.json /root/.docker/;
+              mkdir -p /root/.kube;
+              cp /app/kubeconfig/config /root/.kube/;
+              chmod 400 /root/.ssh/id_rsa /root/.kube/config /root/.docker/config.json;
+              /app/cdddru -f /app/tasks/config.json -v",
+            ]
+          # command: [
+          #     "/bin/sh",
+          #     "-c",
+          #     "mkdir -p /root/.ssh;
+          #     cp /app/gitcred/id_rsa /root/.ssh/id_rsa;              
+          #     mkdir -p /root/.docker;
+          #     cp /app/dockerconfig/config.json /root/.docker/;
+          #     mkdir -p /root/.kube;
+          #     cp /app/kubeconfig/config /root/.kube/;
+          #     chmod 400 /root/.ssh/id_rsa /root/.kube/config /root/.docker/config.json;
+              
+          #     while true; do sleep 30; done;",
+          #   ]
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: dockerconfig
+              mountPath: /app/dockerconfig
+              
             - name: gitcred
               mountPath: /app/gitcred
-              readOnly: true
+              
             - name: kubeconfig
-              mountPath: /root/.kube/
-              readOnly: true
+              mountPath: /app/kubeconfig
+              
             - name: site-data
               mountPath: /app/ext-data
               subPath: main
+            - name: nfs-store
+              mountPath: /app/ext-nfs-store
+              subPath: cdddru-tasks              
           securityContext:
             runAsUser: 0
             runAsGroup: 0
@@ -72,26 +129,6 @@ spec:
                   name: dockerhub-token
                   key: server
 
-        - name: dind-cddru
-          image: docker:18.05-dind
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 512m
-              memory: 512Mi          
-          volumeMounts:
-            - name: dockerconfig
-              mountPath: /root/.docker
-              readOnly: true
-            - name: dind-storage
-              mountPath: /var/lib/docker
-          securityContext:
-            runAsUser: 0
-            runAsGroup: 0
-            privileged: true
-            # allowPrivilegeEscalation: true
       nodeSelector:
         kubernetes.io/hostname: n150-netbook
 
@@ -99,15 +136,25 @@ spec:
         - name: dockerconfig
           secret:
             secretName: dockerhub-cred
+
         - name: kubeconfig
           secret:
             secretName: kubeconfig
+
         - name: gitcred
           secret:
             secretName: gitcred
+
         - name: dind-storage
-          emptyDir: {}
+          hostPath:
+            path: /tmp/dind/storage
+            type: DirectoryOrCreate
+
         - name: site-data
           hostPath:
             path: /mnt/k3snfs/sites
             type: DirectoryOrCreate
+
+        - name: nfs-store
+          persistentVolumeClaim:
+            claimName: cdddru-nfs

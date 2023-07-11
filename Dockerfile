@@ -1,8 +1,10 @@
 # Start with a base Go image for compilation
 FROM golang:1.20 AS builder
 
-RUN apt update -y && apt install upx -y
-# Set the working directory inside the container
+RUN apt-get update -y && apt-get install upx -y
+
+RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/master/contrib/install.sh | sh -s -- -b /usr/local/bin 
+
 WORKDIR /app
 
 # Copy the Go source code to the container
@@ -14,10 +16,11 @@ RUN go mod download
 COPY . .
 
 # Build the Go binary
-# RUN go build -o myapp
+# RUN go build -o cdddru
 # RUN go build -ldflags="-s -w" -o myapp
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o cdddru
 # go build -ldflags="-s -w" -trimpath -o myapp
+
 RUN upx cdddru
 
 # Start a new image to keep it lightweight
@@ -25,6 +28,9 @@ FROM docker:20.10.24-cli-alpine3.18
 
 # Install necessary dependencies
 RUN apk --no-cache add ca-certificates curl git
+
+# COPY trivy 
+COPY --from=builder /usr/local/bin/trivy /usr/local/bin/trivy
 
 # Install kubectl and kubectx
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
@@ -47,4 +53,4 @@ COPY ./tasks/ /app/tasks/
 COPY ./manifests /app/manifests/
 # Set the entrypoint to run the Go application by default
 # ENTRYPOINT ["cdddru"]
-CMD ["cdddru ./tasks/config.json"]
+CMD ["./cdddru", "-f", "./tasks/config.json"]

@@ -33,8 +33,8 @@ type Config struct {
 	MANIFESTS_K8S       string `json:"manifests_k8s"`
 	DEPLOYMENT_NAME_K8s string `json:"deployment_name_k8s"`
 	NAMESPACE_K8s       string `json:"namespace_k8s"`
+	CONTEXT_K8s         string `json:"context_k8s"`
 }
-type bVerbose bool
 
 var USER *user.User
 var err error
@@ -75,15 +75,18 @@ func init() {
 		MANIFESTS_K8S:       getEnvVar("MANIFESTS_K8S", filepath.Join(USER.HomeDir, "app", "k8s_deployment.yaml")),
 		DEPLOYMENT_NAME_K8s: getEnvVar("DEPLOYMENT_NAME_K8S", "main-site"),
 		NAMESPACE_K8s:       getEnvVar("NAMESPACE_K8S", "test-app"),
+		CONTEXT_K8s:         getEnvVar("CONTEXT_K8S", "default"),
 	}
 
 }
 
-func (verbose bVerbose) vprintln(v ...interface{}) {
-	if verbose {
-		fmt.Println(v...)
-	}
-}
+type bVerbose bool
+
+// func (verbose bVerbose) vprintln(v ...interface{}) {
+// 	if verbose {
+// 		fmt.Println(v...)
+// 	}
+// }
 
 type ErrorLine struct {
 	Error       string      `json:"error"`
