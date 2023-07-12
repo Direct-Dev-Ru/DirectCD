@@ -1,4 +1,4 @@
-package main
+package cdddru
 
 import (
 	"bufio"
@@ -20,7 +20,7 @@ import (
 	"github.com/docker/docker/pkg/archive"
 )
 
-func dockerImageBuild(dockerClient *client.Client, imageNameAndTag, contextPath, dockerfile string, logger *Logger) error {
+func DockerImageBuild(dockerClient *client.Client, imageNameAndTag, contextPath, dockerfile string, logger *Logger) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1200)
 	defer cancel()
 
@@ -81,7 +81,7 @@ func PrintDockerResponse(rd io.Reader, logger *Logger) error {
 	return nil
 }
 
-func dockerImagePush(dockerClient *client.Client, imageNameAndTag string, cfg Config, logger *Logger) error {
+func DockerImagePush(dockerClient *client.Client, imageNameAndTag string, cfg Config, logger *Logger) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1200)
 	defer cancel()
 
@@ -92,7 +92,7 @@ func dockerImagePush(dockerClient *client.Client, imageNameAndTag string, cfg Co
 	}
 
 	if len(cfg.DOCKER_TOKEN) == 0 {
-		pathToDockerConfig := filepath.Join(getEnvVar("HOME", "/root"), ".docker", "config.json")
+		pathToDockerConfig := filepath.Join(GetEnvVar("HOME", "/root"), ".docker", "config.json")
 		dockerConfig, err := os.ReadFile(pathToDockerConfig)
 		if err != nil {
 			return err

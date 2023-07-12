@@ -1,4 +1,4 @@
-package main
+package cdddru
 
 import (
 	"fmt"
@@ -26,20 +26,19 @@ type Logger struct {
 	logLevel    LogLevel
 }
 
-func NewLogger(out io.Writer, outError io.Writer, level LogLevel, taskName string) *Logger {
+func NewLogger(out io.Writer, outError io.Writer, level LogLevel, jobName string) *Logger {
 	if outError == nil {
 		outError = out
 	}
-
 	debugColor := color.New(color.FgHiCyan).SprintFunc()
 	infoColor := color.New(color.FgWhite).SprintFunc()
 	warnColor := color.New(color.FgHiYellow).SprintFunc()
 	errorColor := color.New(color.FgHiRed).SprintFunc()
 
-	debugLogger := log.New(out, debugColor("TASK --> "+taskName+" -| DEBUG: "), log.Flags()|log.Llongfile)
-	warnLogger := log.New(out, warnColor("TASK --> "+taskName+" -| WARNING: "), log.LstdFlags)
-	infoLogger := log.New(out, infoColor("TASK --> "+taskName+" -| INFO: "), log.LstdFlags)
-	errorLogger := log.New(outError, errorColor("TASK --> "+taskName+" -| ERROR: "), log.LstdFlags)
+	debugLogger := log.New(out, debugColor(jobName+"->| DEBUG: "), log.Flags()|log.Llongfile)
+	warnLogger := log.New(out, warnColor(jobName+"->| WARNING: "), log.LstdFlags)
+	infoLogger := log.New(out, infoColor(jobName+"->| INFO: "), log.LstdFlags)
+	errorLogger := log.New(outError, errorColor(jobName+"->| ERROR: "), log.LstdFlags)
 
 	return &Logger{
 		debugLogger: debugLogger,

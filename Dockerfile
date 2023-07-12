@@ -49,8 +49,8 @@ WORKDIR /app
 
 # Copy the compiled binary from the builder stage
 COPY --from=builder /app/cdddru /app/
-COPY ./tasks/ /app/tasks/
+COPY ./jobs/ /app/jobs/
 COPY ./manifests /app/manifests/
 # Set the entrypoint to run the Go application by default
 # ENTRYPOINT ["cdddru"]
-CMD ["./cdddru", "-f", "./tasks/config.json"]
+CMD ["./cdddru", "-f", "./jobs/config.json"]

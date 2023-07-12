@@ -1,4 +1,4 @@
-package main
+package cdddru
 
 import (
 	"bytes"
@@ -43,15 +43,15 @@ func ParseFlagSet(flagset *flag.FlagSet, args []string) error {
 	return flagset.Parse(positionalArgs)
 }
 
-func isStringEmpty(s string) bool {
+func IsStringEmpty(s string) bool {
 	return len(s) == 0
 }
 
-func isStringNotEmpty(s string) bool {
+func IsStringNotEmpty(s string) bool {
 	return !(len(s) == 0)
 }
 
-func checkFolderPath(path string) string {
+func CheckFolderPath(path string) string {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return ""
@@ -62,7 +62,7 @@ func checkFolderPath(path string) string {
 	return path
 }
 
-func getEnvVar(varName, defValue string) string {
+func GetEnvVar(varName, defValue string) string {
 
 	value := os.Getenv(varName)
 	if len(value) == 0 {
@@ -74,7 +74,7 @@ func getEnvVar(varName, defValue string) string {
 // CheckArgs should be used to ensure the right command line arguments are
 // passed before executing an example.
 func CheckArgs(logger *Logger, isExit bool, arg ...string) {
-	if len(os.Args) < len(arg)+1 && !isStringNotEmpty(arg[1]) {
+	if len(os.Args) < len(arg)+1 && !IsStringNotEmpty(arg[1]) {
 		PrintWarning(logger, "Usage: %s %s", os.Args[0], strings.Join(arg, " "))
 		if isExit {
 			os.Exit(1)
@@ -99,7 +99,7 @@ func PrettyJsonEncodeToString(data interface{}) (string, error) {
 	return buffer.String(), err
 }
 
-func runExternalCmdsPiped(stdinStr, errorPrefix string, commands [][]string) (string, error) {
+func RunExternalCmdsPiped(stdinStr, errorPrefix string, commands [][]string) (string, error) {
 	if len(errorPrefix) == 0 {
 		errorPrefix = fmt.Sprintf("error occured in %v commands", "pipe of")
 	}
@@ -161,7 +161,7 @@ func runExternalCmdsPiped(stdinStr, errorPrefix string, commands [][]string) (st
 	return outBuf.String(), nil
 }
 
-func runExternalCmd(stdinString, errorPrefix string, commandName string,
+func RunExternalCmd(stdinString, errorPrefix string, commandName string,
 	commandArgs ...string) (string, error) {
 	// Apply the Kubernetes manifest using the 'kubectl' command
 	cmd := exec.Command(commandName, commandArgs...)
@@ -181,7 +181,7 @@ func runExternalCmd(stdinString, errorPrefix string, commandName string,
 	return outBuf.String(), nil
 }
 
-func replaceEnvs(content string) (string, error) {
+func ReplaceEnvs(content string) (string, error) {
 	contentString := strings.TrimSpace(content)
 	pattern := `{{\$(.*?)}}`
 	// Compile the regular expression
@@ -195,13 +195,13 @@ func replaceEnvs(content string) (string, error) {
 	// iterate through matches
 	for _, match := range matches {
 		replacedText := match[0]
-		replacingText := getEnvVar(match[1], "")
+		replacingText := GetEnvVar(match[1], "")
 		contentString = strings.ReplaceAll(contentString, replacedText, replacingText)
 	}
 	return contentString, nil
 }
 
-func getIntervals(configInterval int) [5]int {
+func GetIntervals(configInterval int) [5]int {
 	if configInterval < 120 {
 		configInterval = 120
 	}
@@ -225,4 +225,20 @@ func getIntervals(configInterval int) [5]int {
 		checkIntervals[4] = waitApplyingTimeSeconds - totalWait
 	}
 	return checkIntervals
+}
+
+func TiifFunc(ifCase bool, funcTrue func(args ...interface{}) (interface{}, error),
+	funcFalse func(args ...interface{}) (interface{}, error), args ...interface{}) (interface{}, error) {
+
+	if ifCase {
+		return funcTrue(args)
+	}
+	return funcFalse(args)
+}
+
+func Tiif(ifCase bool, vTrue interface{}, vFalse interface{}) interface{} {
+	if ifCase {
+		return vTrue
+	}
+	return vFalse
 }

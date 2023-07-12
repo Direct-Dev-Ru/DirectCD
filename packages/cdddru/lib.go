@@ -1,4 +1,4 @@
-package main
+package cdddru
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 	plumbing "github.com/go-git/go-git/v5/plumbing"
 )
 
-func getDeploymentReadinessStatus(config Config, imageNameTag string) (bool, error) {
+func GetDeploymentReadinessStatus(config Config, imageNameTag string) (bool, error) {
 	// kubectl get deployment main-site  -n test-app | grep main-site | awk '{print $2}'
 	pipeCommands := [][]string{
 		{"kubectx", config.CONTEXT_K8s},
@@ -22,7 +22,7 @@ func getDeploymentReadinessStatus(config Config, imageNameTag string) (bool, err
 		{"grep", config.DEPLOYMENT_NAME_K8s + ".*" + imageNameTag},
 		{"awk", `{print $2}`},
 	}
-	out, err := runExternalCmdsPiped("", "pipe error", pipeCommands)
+	out, err := RunExternalCmdsPiped("", "pipe error", pipeCommands)
 	if err != nil || len(out) == 0 {
 		return false, nil
 	}
@@ -34,11 +34,11 @@ func getDeploymentReadinessStatus(config Config, imageNameTag string) (bool, err
 }
 
 // get current image tag from k8s deployment - we will run kubectl ...
-func getImageTag(cfg Config) (string, error) {
+func GetImageTag(cfg Config) (string, error) {
 
 	var deployment, namespace, dockerImage = cfg.DEPLOYMENT_NAME_K8s, cfg.NAMESPACE_K8s, cfg.DOCKER_IMAGE
 
-	_, err := runExternalCmd("", "error while switching to context "+cfg.CONTEXT_K8s, "kubectx", cfg.CONTEXT_K8s)
+	_, err := RunExternalCmd("", "error while switching to context "+cfg.CONTEXT_K8s, "kubectx", cfg.CONTEXT_K8s)
 	if err != nil {
 		return "", fmt.Errorf("failed to switch context: %v (%v)", cfg.CONTEXT_K8s, err)
 	}
@@ -76,7 +76,7 @@ func getImageTag(cfg Config) (string, error) {
 // ----------------- //
 
 // Convert a version tag to a comparable numeric value
-func convertTagToNumeric(tag, prefix string) (int64, error) {
+func ConvertTagToNumeric(tag, prefix string) (int64, error) {
 	tag = strings.TrimPrefix(tag, prefix) // Remove the leading prefix
 	parts := strings.Split(tag, ".")      // Split the tag into major, minor, and patch parts
 
@@ -101,7 +101,7 @@ func convertTagToNumeric(tag, prefix string) (int64, error) {
 	return numeric, nil
 }
 
-func getCommitHashByTag(gitRepository *git.Repository, tag string) (string, error) {
+func GetCommitHashByTag(gitRepository *git.Repository, tag string) (string, error) {
 	refTag, err := gitRepository.Tag(tag)
 	if err != nil {
 		return "", err
@@ -116,7 +116,7 @@ func getCommitHashByTag(gitRepository *git.Repository, tag string) (string, erro
 	// PrintInfo(logger, "Tag '%s' has commit hash %s", "v1.0.11", commitHash.String())
 }
 
-func getTagsFromGitRepo(gitRepository *git.Repository, tagPrefix string) ([]string, error) {
+func GetTagsFromGitRepo(gitRepository *git.Repository, tagPrefix string) ([]string, error) {
 
 	var repoTags []string
 	repoTags = make([]string, 0, 4)
@@ -135,15 +135,15 @@ func getTagsFromGitRepo(gitRepository *git.Repository, tagPrefix string) ([]stri
 	return repoTags, nil
 }
 
-func getMaxTag(tags []string, maxTagValue string, prefix string) (int64, string, error) {
+func GetMaxTag(tags []string, maxTagValue string, prefix string) (int64, string, error) {
 	var tagString string = "v1.0.0"
-	if isStringEmpty(maxTagValue) {
+	if IsStringEmpty(maxTagValue) {
 		maxTagValue = "v99.99.99"
 	}
-	nMaxTag, _ := convertTagToNumeric(tagString, prefix)
-	nMaxTagValue, _ := convertTagToNumeric(maxTagValue, prefix)
+	nMaxTag, _ := ConvertTagToNumeric(tagString, prefix)
+	nMaxTagValue, _ := ConvertTagToNumeric(maxTagValue, prefix)
 	for _, tag := range tags {
-		currentNumTag, err := convertTagToNumeric(tag, prefix)
+		currentNumTag, err := ConvertTagToNumeric(tag, prefix)
 		if err != nil {
 			return -1, "", err
 		}
@@ -155,13 +155,13 @@ func getMaxTag(tags []string, maxTagValue string, prefix string) (int64, string,
 	return nMaxTag, tagString, nil
 }
 
-func compareTwoTags(tag1, tag2, prefix string) (int, error) {
+func CompareTwoTags(tag1, tag2, prefix string) (int, error) {
 
-	nTag1, err := convertTagToNumeric(tag1, prefix)
+	nTag1, err := ConvertTagToNumeric(tag1, prefix)
 	if err != nil {
 		return -2, err
 	}
-	nTag2, err := convertTagToNumeric(tag2, prefix)
+	nTag2, err := ConvertTagToNumeric(tag2, prefix)
 	if err != nil {
 		return -3, err
 	}
@@ -179,7 +179,7 @@ func compareTwoTags(tag1, tag2, prefix string) (int, error) {
 
 }
 
-func rsync(targetPath, folderPath string) error {
+func Rsync(targetPath, folderPath string) error {
 	// Perform the rsync operation using the 'rsync' command
 	var errThread bytes.Buffer
 	err := os.MkdirAll(targetPath, os.ModePerm)
@@ -197,7 +197,7 @@ func rsync(targetPath, folderPath string) error {
 	return nil
 }
 
-func generateManifest(templatePath string, data interface{}) (string, error) {
+func GenerateManifest(templatePath string, data interface{}) (string, error) {
 	// Create a new template and parse the template string
 	rawManifest, err := os.ReadFile(templatePath)
 	if err != nil {

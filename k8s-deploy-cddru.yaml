@@ -74,7 +74,7 @@ spec:
               mkdir -p /root/.kube;
               cp /app/kubeconfig/config /root/.kube/;
               chmod 400 /root/.ssh/id_rsa /root/.kube/config /root/.docker/config.json;
-              /app/cdddru -f /app/tasks/config.json -v",
+              /app/cdddru -f /app/jobs/config.json -v",
             ]
           # command: [
           #     "/bin/sh",
@@ -105,7 +105,7 @@ spec:
               subPath: main
             - name: nfs-store
               mountPath: /app/ext-nfs-store
-              subPath: cdddru-tasks              
+              subPath: cdddru-jobs              
           securityContext:
             runAsUser: 0
             runAsGroup: 0

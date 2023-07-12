@@ -1,11 +1,11 @@
-package main
+package cdddru
 
 import (
 	"fmt"
 	"os"
 )
 
-func inlineTest(isRun bool, config Config, logger *Logger, isExit bool) {
+func InlineTest(isRun bool, config Config, logger *Logger, isExit bool) {
 	if isRun {
 
 		logger.Debug(fmt.Sprint(PrettyJsonEncodeToString(config)))
