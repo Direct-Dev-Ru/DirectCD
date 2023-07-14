@@ -1,0 +1,33 @@
+job_name: "main ddru dev (yaml)"
+job_type: tags-prefixed
+check_interval: 120
+
+# git repository parameters - the point of truth
+git_repo_url: git@github.com:Direct-Dev-Ru/http2-nodejs-ddru.git
+git_private_key: /{{$HOME}}/.ssh/id_rsa
+git_branch: main
+git_tag_prefix: v
+git_start_tag: v0.0.0
+git_max_tag: v99.99.99
+git_start_tag_file: /tmp/cdddru/tag-main-ddru
+local_git_folder: /tmp/dev-repo-main-ddru
+git_commit: ""
+
+# do deploy of new manifest or not
+do_manifest_deploy: true
+context_k8s: default
+namespace_k8s: test-app
+deployment_name_k8s: main-site
+manifests_k8s: ./manifests/k8s-main-site-manifests.yaml
+# build docker image or not - relative path to Dockerfile from local_git_folder and auth params
+do_docker_build: true
+docker_file: Dockerfile
+docker_image: kuznetcovay/ddru
+docker_server: https://index.docker.io/v1/
+docker_token: "{{$DOCKER_TOKEN}}"
+docker_user: kuznetcovay
+# if true git_sub_folder relative path from local_git_folder will be rsynced to target_folder
+do_subfolder_sync: false
+git_sub_folder: "/assets/"
+target_folder: "/tmp/node/app/"
+

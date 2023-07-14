@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"os"
 	"os/exec"
 	"regexp"
@@ -116,6 +117,40 @@ func GetCommitHashByTag(gitRepository *git.Repository, tag string) (string, erro
 	// PrintInfo(logger, "Tag '%s' has commit hash %s", "v1.0.11", commitHash.String())
 }
 
+func CheckOutByCommitHash(gitRepository *git.Repository, commitHash string) error {
+	// Resolve the commit object from the hash
+	hash := plumbing.NewHash(commitHash)
+	commitObj, err := gitRepository.CommitObject(hash)
+	if err != nil {
+		return err
+	}
+	// Checkout the commit
+	wt, err := gitRepository.Worktree()
+	if err != nil {
+		return err
+	}
+	err = wt.Checkout(&git.CheckoutOptions{
+		Hash: commitObj.Hash,
+	})
+	if err != nil {
+		return err
+	}
+	files, err := GetWorktreeFiles(wt)
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		fmt.Println(file.Name())
+	}
+	return nil
+}
+
+func GetWorktreeFiles(wt *git.Worktree) ([]fs.FileInfo, error) {
+
+	fileList, err := wt.Filesystem.ReadDir(".")
+	return fileList, err
+}
+
 func GetTagsFromGitRepo(gitRepository *git.Repository, tagPrefix string) ([]string, error) {
 
 	var repoTags []string
@@ -186,8 +221,8 @@ func Rsync(targetPath, folderPath string) error {
 	if err != nil {
 		return err
 	}
-
-	cmd := exec.Command("rsync", "-avzh", "--delete", "--recursive", folderPath, targetPath)
+	keys := Tiif(bool(FbVerbose), "-avzhq", "-avzh")
+	cmd := exec.Command("rsync", keys.(string), "--delete", "--recursive", folderPath, targetPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = &errThread
 	err = cmd.Run()

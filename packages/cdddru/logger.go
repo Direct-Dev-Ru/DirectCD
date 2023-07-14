@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 
 	"github.com/fatih/color"
 )
@@ -23,6 +22,7 @@ type Logger struct {
 	infoLogger  *log.Logger
 	warnLogger  *log.Logger
 	errorLogger *log.Logger
+	fatalLogger *log.Logger
 	logLevel    LogLevel
 }
 
@@ -34,17 +34,20 @@ func NewLogger(out io.Writer, outError io.Writer, level LogLevel, jobName string
 	infoColor := color.New(color.FgWhite).SprintFunc()
 	warnColor := color.New(color.FgHiYellow).SprintFunc()
 	errorColor := color.New(color.FgHiRed).SprintFunc()
+	fatalColor := color.New(color.FgHiMagenta).SprintFunc()
 
 	debugLogger := log.New(out, debugColor(jobName+"->| DEBUG: "), log.Flags()|log.Llongfile)
 	warnLogger := log.New(out, warnColor(jobName+"->| WARNING: "), log.LstdFlags)
 	infoLogger := log.New(out, infoColor(jobName+"->| INFO: "), log.LstdFlags)
 	errorLogger := log.New(outError, errorColor(jobName+"->| ERROR: "), log.LstdFlags)
+	fatalLogger := log.New(outError, fatalColor(jobName+"->| FATAL: "), log.LstdFlags)
 
 	return &Logger{
 		debugLogger: debugLogger,
 		infoLogger:  infoLogger,
 		warnLogger:  warnLogger,
 		errorLogger: errorLogger,
+		fatalLogger: fatalLogger,
 		logLevel:    level,
 	}
 }
@@ -98,7 +101,13 @@ func (l *Logger) ErrorJson(msg string) {
 
 func (l *Logger) Error(msg string) {
 	if l.logLevel <= ErrorLevel {
-		l.errorLogger.Printf("\x1b[31;1m%s\x1b[0m\n", msg)
+		l.errorLogger.Println(msg)
+	}
+}
+
+func (l *Logger) Fatal(msg string) {
+	if l.logLevel <= ErrorLevel {
+		l.fatalLogger.Println(msg)
 	}
 }
 
@@ -107,10 +116,11 @@ func CheckIfError(logger *Logger, err error, isExit bool) {
 	if err == nil {
 		return
 	}
-
-	logger.Error(err.Error())
 	if isExit {
-		os.Exit(1)
+		logger.Fatal(err.Error())
+		panic(err)
+	} else {
+		logger.Error(err.Error())
 	}
 }
 
@@ -131,5 +141,10 @@ func PrintWarning(logger *Logger, format string, args ...interface{}) {
 // PrintWarning should be used to display a warning
 func PrintError(logger *Logger, format string, args ...interface{}) {
 	logger.Error(fmt.Sprintf(format, args...))
+	// fmt.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf(format, args...))
+}
+
+func PrintFatal(logger *Logger, format string, args ...interface{}) {
+	logger.Fatal(fmt.Sprintf(format, args...))
 	// fmt.Printf("\x1b[31;1m%s\x1b[0m\n", fmt.Sprintf(format, args...))
 }
