@@ -9,7 +9,7 @@ Common:
 
 # git repository parameters - the point of truth
 git_repo_url: git@github.com:Direct-Dev-Ru/http2-nodejs-ddru.git
-git_private_key: /{{$HOME}}/.ssh/id_rsa
+git_private_key: {{$HOME}}/.ssh/id_rsa
 git_branch: assets
 git_tag_prefix: assets-
 git_start_tag: assets-0.0.0

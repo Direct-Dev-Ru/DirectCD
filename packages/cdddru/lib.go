@@ -59,7 +59,7 @@ func GetImageTag(cfg Config) (string, error) {
 	outputString := strings.TrimSpace(string(output))
 
 	// Define the regular expression pattern
-	pattern := dockerImage + `:` + `(` + cfg.GIT_TAG_PREFIX + `?\d{1,2}\.\d{1,2}\.\d{1,2})`
+	pattern := dockerImage + `:` + `(` + cfg.GIT.GIT_TAG_PREFIX + `?\d{1,2}\.\d{1,2}\.\d{1,2})`
 	// Compile the regular expression
 	regex := regexp.MustCompile(pattern)
 
