@@ -1,6 +1,11 @@
-job_name: "main ddru dev (yaml)"
+job_name: "Main_ddru_sync_assets_dev_(yaml)"
 job_type: tags-prefixed
-check_interval: 120
+check_interval: 10
+
+Common:
+  job_name: "Main_ddru_sync_assets_dev_(yaml)"
+  job_type: tags-prefixed
+  check_interval: 10
 
 # git repository parameters - the point of truth
 git_repo_url: git@github.com:Direct-Dev-Ru/http2-nodejs-ddru.git
@@ -13,12 +18,31 @@ git_start_tag_file: /tmp/cdddru/tag-main-ddru-assets
 local_git_folder: /tmp/dev-repo-main-ddru-assets
 git_commit: ""
 
+Git:
+  do_git_clone: true
+  git_repo_url: git@github.com:Direct-Dev-Ru/http2-nodejs-ddru.git
+  git_private_key: /{{$HOME}}/.ssh/id_rsa
+  git_branch: assets
+  git_tag_prefix: assets-
+  git_start_tag: assets-0.0.0
+  git_max_tag: assets-99.99.99
+  git_start_tag_file: /tmp/cdddru/tag-main-ddru-assets
+  local_git_folder: /tmp/dev-repo-main-ddru-assets
+  git_commit: ""
+
 # do deploy of new manifest or not
 do_manifest_deploy: false
 context_k8s: 
 namespace_k8s: 
 deployment_name_k8s: 
 manifests_k8s: 
+
+Deploy:
+  do_manifest_deploy: false
+  context_k8s: 
+  namespace_k8s: 
+  deployment_name_k8s: 
+  manifests_k8s: 
 
 # build docker image or not - relative path to Dockerfile from local_git_folder and auth params
 do_docker_build: false
@@ -28,8 +52,21 @@ docker_server:
 docker_token: 
 docker_user: 
 
+Docker:
+  do_docker_build: false
+  docker_file: 
+  docker_image: 
+  docker_server: 
+  docker_token: 
+  docker_user: 
+
 # if true git_sub_folder relative path from local_git_folder will be rsynced to target_folder
 do_subfolder_sync: true
 git_sub_folder: "/assets/"
 target_folder: "/tmp/node/app/"
+
+Sync:
+  do_subfolder_sync: true
+  git_sub_folder: "/assets/"
+  target_folder: "/tmp/node/app/"
 

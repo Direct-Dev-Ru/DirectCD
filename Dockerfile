@@ -1,14 +1,17 @@
 # Start with a base Go image for compilation
-FROM golang:1.20 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.21.3-bullseye AS builder
 
-RUN apt-get update -y && apt-get install upx -y
+RUN apt update -y && apt install upx -y
 
-RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/master/contrib/install.sh | sh -s -- -b /usr/local/bin 
+# trivy installation - but i comment it ... no plan to use it
+# RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/master/contrib/install.sh | sh -s -- -b /usr/local/bin 
 
 WORKDIR /app
 
-# Copy the Go source code to the container
+ARG TARGETARCH
+
 COPY go.mod ./
+
 COPY go.sum ./
 
 RUN go mod download
@@ -18,19 +21,44 @@ COPY . .
 # Build the Go binary
 # RUN go build -o cdddru
 # RUN go build -ldflags="-s -w" -o myapp
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o cdddru
+RUN GOOS=linux GOARCH=$TARGETARCH CGO_ENABLED=0 go build -ldflags="-s -w" -o cdddru
 # go build -ldflags="-s -w" -trimpath -o myapp
 
 RUN upx cdddru
 
 # Start a new image to keep it lightweight
-FROM docker:20.10.24-cli-alpine3.18
+FROM docker:24.0.6-git
 
 # Install necessary dependencies
+RUN apk update
 RUN apk --no-cache add ca-certificates curl git
 
+ARG TARGETARCH
+
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        curl -LO "https://golang.org/dl/go1.21.3.linux-amd64.tar.gz" && \
+        tar -C /usr/local -xzf go1.21.3.linux-amd64.tar.gz && \
+        rm go1.21.3.linux-amd64.tar.gz; \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+        curl -LO "https://golang.org/dl/go1.21.3.linux-arm64.tar.gz" && \
+        tar -C /usr/local -xzf go1.21.3.linux-arm64.tar.gz && \
+        rm go1.21.3.linux-arm64.tar.gz; \
+    # Add more elif statements for other architectures as needed
+    fi
+
+# Set Go environment variables
+ENV GOROOT=/usr/local/go
+ENV GOPATH=/go
+ENV PATH=$GOPATH/bin:$GOROOT/bin:$PATH
+
+RUN mkdir -p /root/.vscode-server/extensions \
+    && curl -L https://github.com/golang/vscode-go/releases/download/v0.39.1/go-0.39.1.vsix -o /tmp/go.vsix \
+    && unzip /tmp/go.vsix -d /root/.vscode-server/extensions/ms-vscode.go \
+    && rm /tmp/go.vsix \
+    && go get golang.org/x/tools/gopls
+
 # COPY trivy 
-COPY --from=builder /usr/local/bin/trivy /usr/local/bin/trivy
+# COPY --from=builder /usr/local/bin/trivy /usr/local/bin/trivy
 
 # Install kubectl and kubectx
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
@@ -54,3 +82,4 @@ COPY ./manifests /app/manifests/
 # Set the entrypoint to run the Go application by default
 # ENTRYPOINT ["cdddru"]
 CMD ["./cdddru", "-f", "./jobs/config.json"]
+

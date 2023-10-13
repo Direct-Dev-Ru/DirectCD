@@ -17,6 +17,8 @@ import (
 var FbOnce bool
 var FbVerbose bVerbose
 
+var Mode string
+
 func Startup(logger *Logger) ([]Config, error) {
 
 	// Define named flags
@@ -51,15 +53,18 @@ func Startup(logger *Logger) ([]Config, error) {
 	// Parse positional arguments
 	args := flag.Args()
 
-	if len(args) > 0 {
-		*fsJobFolder = args[0]
-	}
-	if len(args) > 1 {
-		*fsJobFile = args[1]
-	}
-	if len(args) > 2 {
-		*fsJobName = args[2]
-	}
+	// fmt.Println("args:", args)
+
+	// if len(args) > 0 {
+
+	// }
+	// if len(args) > 1 {
+	// 	*fsJobFile = args[1]
+	// }
+	// if len(args) > 2 {configs[1].JOB_NAME
+	// 	*fsJobName = args[2]
+	// }
+
 	if len(args) == 0 && len(*fsJobFile) == 0 && len(*fsJobFolder) == 0 {
 		usr, err := user.Current()
 		if err != nil {
@@ -125,7 +130,7 @@ func Startup(logger *Logger) ([]Config, error) {
 						err2 = fmt.Errorf("job '%s' already presented in slice", config.JOB_NAME)
 						return err2
 					}
-					jobsConfigs = append(jobsConfigs, config)
+					jobsConfigs = append(jobsConfigs, *config)
 
 				}
 			}
@@ -139,33 +144,45 @@ func Startup(logger *Logger) ([]Config, error) {
 	}
 
 	// if path to config file specified and no folderpath specified
-	if len(*fsJobFile) > 0 && len(*fsJobFolder) == 0 {
+	if (len(*fsJobFile) > 0 && len(*fsJobFolder) == 0) || len(args) > 0 {
 
 		var configPath string
-		var config Config = Config{}
-
-		// calculating configPath
-		configPath = filepath.Join(*fsJobFile)
-		if len(*fsJobFolder) > 0 {
-			configPath = filepath.Join(*fsJobFolder, *fsJobFile)
+		var config *Config
+		var err error
+		if len(*fsJobFile) > 0 && len(*fsJobFolder) == 0 {
+			// calculating configPath
+			configPath = filepath.Join(*fsJobFile)
+			if len(*fsJobFolder) > 0 {
+				configPath = filepath.Join(*fsJobFolder, *fsJobFile)
+			}
+			config, err = getOneConfig(configPath)
+			if err != nil {
+				return jobsConfigs, err
+			}
+			jobsConfigs = append(jobsConfigs, *config)
 		}
-		config, err := getOneConfig(configPath)
-		if err != nil {
-			return jobsConfigs, err
+		if len(args) > 0 {
+			for _, cfgPath := range args {
+				config, err := getOneConfig(cfgPath)
+				fmt.Println("config from args:", config, err)
+				if err != nil {
+					return jobsConfigs, err
+				}
+				jobsConfigs = append(jobsConfigs, *config)
+			}
 		}
-		jobsConfigs = append(jobsConfigs, config)
 	}
 	return jobsConfigs, nil
 }
 
-func getOneConfig(configPath string) (Config, error) {
+func getOneConfig(configPath string) (*Config, error) {
 	// Read the config file
 	configFileBytes, err := os.ReadFile(configPath)
 
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return Config{}, fmt.Errorf("failed to read config file %s: %v", configPath, err)
+		return &Config{}, fmt.Errorf("failed to read config file %s: %v", configPath, err)
 	} else if errors.Is(err, os.ErrNotExist) {
-		return DefaultConfig, nil
+		return nil, nil
 	}
 
 	configFile, _ := ReplaceEnvs(string(configFileBytes))
@@ -185,10 +202,10 @@ func getOneConfig(configPath string) (Config, error) {
 	}
 
 	if err != nil {
-		return Config{}, fmt.Errorf("failed to parse config file: %v", err)
+		return nil, fmt.Errorf("failed to parse config file: %v", err)
 	}
-	if config.CHECK_INTERVAL < 120 {
+	if Mode != "development" && config.CHECK_INTERVAL < 120 {
 		config.CHECK_INTERVAL = 120
 	}
-	return config, nil
+	return &config, nil
 }

@@ -105,6 +105,7 @@ func RunOneJob(config Config, wg *sync.WaitGroup) {
 		gitRepository, err = git.PlainClone(localRepoPath, false, &git.CloneOptions{
 			Auth:          publicKeys,
 			URL:           url,
+			SingleBranch:  true,
 			Progress:      os.Stdout,
 			ReferenceName: refName,
 		})
@@ -157,22 +158,39 @@ func RunOneJob(config Config, wg *sync.WaitGroup) {
 
 	for i := 0; i < nCount; i++ {
 		// retrieving the branch being pointed by HEAD
-		repoRef, err := gitRepository.Head()
-		CheckIfError(logger, err, true)
+		// repoRef, err := gitRepository.Head()
+		// CheckIfError(logger, err, true)
 		// getting the commit hash referenced by current tag
 		currentTagsCommitHash, _ := GetCommitHashByTag(gitRepository, gitCurrentTag)
 
+		branchName = "refs/heads/" + config.GIT_BRANCH
+		err = gitWorkTree.Checkout(&git.CheckoutOptions{
+			Branch: plumbing.ReferenceName(branchName),
+			Force:  true,
+		})
+		if err != nil {
+			CheckIfError(logger, fmt.Errorf("failed checkout %s branch: %v", config.GIT_BRANCH, err), true)
+		}
+
 		// updating git repository
 		err = gitWorkTree.Pull(&git.PullOptions{
-			ReferenceName: repoRef.Name(),
+			// ReferenceName: repoRef.Name(),
+			ReferenceName: plumbing.ReferenceName(branchName),
 			RemoteName:    "origin",
+			SingleBranch:  true,
 			Auth:          publicKeys,
 			Force:         true,
 		})
+
 		if err != nil && err == git.NoErrAlreadyUpToDate {
 			PrintInfo(logger, "git repo at path: %s is up to date", localRepoPath)
 		} else if err != nil && err != git.NoErrAlreadyUpToDate {
-			CheckIfError(logger, err, true)
+			CheckIfError(logger, fmt.Errorf("pull error from git lib: %w. trying native git pull", err), false)
+			var out string
+			// git pull origin main --allow-unrelated-histories
+			out, err = RunExternalCmd("", "pull error:", "git", "pull", "origin", branchName, "--allow-unrelated-histories")
+			CheckIfError(logger, fmt.Errorf("native git pull error: %w", err), true)
+			PrintInfo(logger, "pull out: %s", out)
 		} else {
 			PrintInfo(logger, "git repo at path: %s pulled successfully, %v", localRepoPath, err)
 		}

@@ -22,15 +22,18 @@ type Config struct {
 	GIT_TAG_PREFIX      string `json:"git_tag_prefix" yaml:"git_tag_prefix"`
 	GIT_START_TAG_FILE  string `json:"git_start_tag_file" yaml:"git_start_tag_file"`
 	LOCAL_GIT_FOLDER    string `json:"local_git_folder" yaml:"local_git_folder"`
+
 	DO_DOCKER_BUILD     bool   `json:"do_docker_build" yaml:"do_docker_build"`
 	DOCKER_FILE         string `json:"docker_file" yaml:"docker_file"`
 	DOCKER_IMAGE        string `json:"docker_image" yaml:"docker_image"`
 	DOCKER_SERVER       string `json:"docker_server" yaml:"docker_server"`
 	DOCKER_USER         string `json:"docker_user" yaml:"docker_user"`
 	DOCKER_TOKEN        string `json:"docker_token" yaml:"docker_token"`
+
 	DO_SUBFOLDER_SYNC   bool   `json:"do_subfolder_sync" yaml:"do_subfolder_sync"`
 	GIT_SUB_FOLDER      string `json:"git_sub_folder" yaml:"git_sub_folder"`
 	TARGET_FOLDER       string `json:"target_folder" yaml:"target_folder"`
+	
 	DO_MANIFEST_DEPLOY  bool   `json:"do_manifest_deploy" yaml:"do_manifest_deploy"`
 	CONTEXT_K8s         string `json:"context_k8s" yaml:"context_k8s"`
 	NAMESPACE_K8s       string `json:"namespace_k8s" yaml:"namespace_k8s"`
@@ -112,4 +115,39 @@ type DockerAuths struct {
 
 type DockerAuth struct {
 	Auth string `json:"auth"`
+}
+
+type GitConfig struct {
+	DO_GIT_CLONE       bool   `json:"do_git_clone,string,omitempty" yaml:"do_git_clone"`
+	GIT_REPO_URL       string `json:"git_repo_url" yaml:"git_repo_url"`
+	GIT_PRIVATE_KEY    string `json:"git_private_key" yaml:"git_private_key"`
+	GIT_START_TAG      string `json:"git_start_tag" yaml:"git_start_tag"`
+	GIT_MAX_TAG        string `json:"git_max_tag" yaml:"git_max_tag"`
+	GIT_BRANCH         string `json:"git_branch" yaml:"git_branch"`
+	GIT_TAG_PREFIX     string `json:"git_tag_prefix" yaml:"git_tag_prefix"`
+	GIT_START_TAG_FILE string `json:"git_start_tag_file" yaml:"git_start_tag_file"`
+	LOCAL_GIT_FOLDER   string `json:"local_git_folder" yaml:"local_git_folder"`
+}
+
+type DockerConfig struct {
+	DO_DOCKER_BUILD     bool   `json:"do_docker_build,string,omitempty" yaml:"do_docker_build"`
+	DOCKER_FILE         string `json:"docker_file" yaml:"docker_file"`
+	DOCKER_IMAGE        string `json:"docker_image" yaml:"docker_image"`
+	DOCKER_SERVER       string `json:"docker_server" yaml:"docker_server"`
+	DOCKER_USER         string `json:"docker_user" yaml:"docker_user"`
+	DOCKER_TOKEN        string `json:"docker_token" yaml:"docker_token"`
+}
+
+type DeployConfig struct {
+	DO_MANIFEST_DEPLOY  bool   `json:"do_manifest_deploy,string,omitempty" yaml:"do_manifest_deploy"`
+	CONTEXT_K8s         string `json:"context_k8s" yaml:"context_k8s"`
+	NAMESPACE_K8s       string `json:"namespace_k8s" yaml:"namespace_k8s"`
+	DEPLOYMENT_NAME_K8s string `json:"deployment_name_k8s" yaml:"deployment_name_k8s"`
+	MANIFESTS_K8S       string `json:"manifests_k8s" yaml:"manifests_k8s"`
+}
+
+type SyncConfig struct {
+	DO_SUBFOLDER_SYNC   bool   `json:"do_subfolder_sync,string,omitempty" yaml:"do_subfolder_sync"`
+	GIT_SUB_FOLDER      string `json:"git_sub_folder" yaml:"git_sub_folder"`
+	TARGET_FOLDER       string `json:"target_folder" yaml:"target_folder"`
 }
