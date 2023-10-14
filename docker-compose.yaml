@@ -23,7 +23,7 @@ services:
       - label:disable
 
   cdddru:
-    image: kuznetcovay/cdddru:${DOCKER_IMAGE_TAG:-v1.0.14}
+    image: kuznetcovay/cdddru:${DOCKER_IMAGE_TAG:-dev-v1.0.1}
     # image: docker:latest
     container_name: cdddru
     hostname: cdddru-container

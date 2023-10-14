@@ -144,15 +144,13 @@ type GitConfig struct {
 	branch             plumbing.ReferenceName
 }
 
-func (gitcfg *GitConfig) OpenOrCloneRepo(url string, logger *Logger) (*git.Repository, *git.Worktree, error) {
-	var gitRepository *git.Repository
-	var gitWorkTree *git.Worktree
-	var err error
+func (gitcfg *GitConfig) OpenOrCloneRepo(url string, logger *Logger) (gitRepository *git.Repository, gitWorkTree *git.Worktree, err error) {
 
 	PrintInfo(logger, "opening or cloning git repo: %s ...", url)
 	gitcfg.publickeys, err = ssh.NewPublicKeysFromFile("git", gitcfg.GIT_PRIVATE_KEY, "")
 	if err != nil {
-		CheckIfError(logger, fmt.Errorf("generate publickeys failed: %w", err), true)
+		return
+		// CheckIfError(logger, fmt.Errorf("generate publickeys failed: %w", err), true)
 	}
 
 	// Check if git repo exists in localRepoPath and open it, overwise - cloning
@@ -164,7 +162,10 @@ func (gitcfg *GitConfig) OpenOrCloneRepo(url string, logger *Logger) (*git.Repos
 
 	if err == nil {
 		gitRepository, err = git.PlainOpen(gitcfg.LOCAL_GIT_FOLDER)
-		CheckIfError(logger, err, true)
+		if err != nil {
+			return
+		}
+		// CheckIfError(logger, err, true)
 	} else if os.IsNotExist(err) {
 		gitRepository, err = git.PlainClone(gitcfg.LOCAL_GIT_FOLDER, false, &git.CloneOptions{
 			Auth:          gitcfg.publickeys,
@@ -173,25 +174,29 @@ func (gitcfg *GitConfig) OpenOrCloneRepo(url string, logger *Logger) (*git.Repos
 			Progress:      os.Stdout,
 			ReferenceName: refName,
 		})
-		CheckIfError(logger, err, true)
+		if err != nil {
+			return
+		}
+		// CheckIfError(logger, err, true)
 	} else {
 		if err != nil {
-			CheckIfError(logger, fmt.Errorf("check existing git repo %s failed: %s", gitcfg.LOCAL_GIT_FOLDER, err.Error()), true)
+			return
+			// CheckIfError(logger, fmt.Errorf("check existing git repo %s failed: %s", gitcfg.LOCAL_GIT_FOLDER, err.Error()), true)
 		}
 	}
 
 	// Get the git worktree
 	gitWorkTree, err = gitRepository.Worktree()
 	if err != nil {
-		CheckIfError(logger, fmt.Errorf("failed to get worktree: %v", err.Error()), true)
+		return
+		// CheckIfError(logger, fmt.Errorf("failed to get worktree: %v", err.Error()), true)
 	}
-	return gitRepository, gitWorkTree, err
+	return
 }
 
 func (gitcfg *GitConfig) Pull(gitWorkTree *git.Worktree, logger *Logger) error {
-	var err error
 
-	err = gitWorkTree.Pull(&git.PullOptions{
+	var err error = gitWorkTree.Pull(&git.PullOptions{
 		// ReferenceName: repoRef.Name(),
 		ReferenceName: plumbing.ReferenceName(gitcfg.branchName),
 		RemoteName:    "origin",
@@ -204,14 +209,17 @@ func (gitcfg *GitConfig) Pull(gitWorkTree *git.Worktree, logger *Logger) error {
 		PrintInfo(logger, "git repo at path: %s is up to date", gitcfg.LOCAL_GIT_FOLDER)
 		return nil
 	} else if err != nil && err != git.NoErrAlreadyUpToDate {
-		CheckIfError(logger, fmt.Errorf("pull error from git lib: %w. trying native git pull", err), false)
+		return fmt.Errorf("pull error from git lib: %w", err)
+
+		// CheckIfError(logger, fmt.Errorf("pull error from git lib: %w. trying native git pull", err), false)
+
 		// var out string
 		// git pull origin main --allow-unrelated-histories
 		// out, err = RunExternalCmd("", "pull error:", "git", "pull", "origin", config.GIT.GIT_BRANCH, "--allow-unrelated-histories")
 		// CheckIfError(logger, fmt.Errorf("native git pull error: %w", err), true)
 
 		// PrintInfo(logger, "pull out: %s", out)
-		return err
+
 	} else {
 		PrintInfo(logger, "git repo at path: %s pulled successfully, %v", gitcfg.LOCAL_GIT_FOLDER, err)
 		return nil
