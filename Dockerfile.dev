@@ -28,9 +28,8 @@ RUN upx cdddru
 
 # Start a new image
 
-FROM docker:24.0.6-git
-# FROM kuznetcovay/cdddru:dev-v1.0.1
-
+# FROM docker:24.0.6-git
+FROM kuznetcovay/cdddru:dev-v1.0.1
 
 # Install necessary dependencies
 RUN apk update
@@ -41,11 +40,15 @@ ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
         curl -LO "https://golang.org/dl/go1.21.3.linux-amd64.tar.gz" && \
         tar -C /usr/local -xzf go1.21.3.linux-amd64.tar.gz && \
-        rm go1.21.3.linux-amd64.tar.gz; \
+        rm go1.21.3.linux-amd64.tar.gz && \
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
+        chmod +x kubectl && mv kubectl /usr/local/bin/; \
     elif [ "$TARGETARCH" = "arm64" ]; then \
         curl -LO "https://golang.org/dl/go1.21.3.linux-arm64.tar.gz" && \
         tar -C /usr/local -xzf go1.21.3.linux-arm64.tar.gz && \
-        rm go1.21.3.linux-arm64.tar.gz; \
+        rm go1.21.3.linux-arm64.tar.gz && \
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl" && \
+        chmod +x kubectl && mv kubectl /usr/local/bin/; \
     # Add more elif statements for other architectures as needed
     fi
 
@@ -57,13 +60,10 @@ ENV PATH=$GOPATH/bin:$GOROOT/bin:$PATH
 # COPY trivy 
 # COPY --from=builder /usr/local/bin/trivy /usr/local/bin/trivy
 
-# Install kubectl and kubectx
-RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
-    chmod +x kubectl && mv kubectl /usr/local/bin/
 
-RUN git clone https://github.com/ahmetb/kubectx /opt/kubectx && \
-    ln -s /opt/kubectx/kubectx /usr/local/bin/kubectx && \
-    ln -s /opt/kubectx/kubens /usr/local/bin/kubens
+# RUN rm -Rf /opt/kubectx/ && git clone https://github.com/ahmetb/kubectx /opt/kubectx && \
+#     ln -s /opt/kubectx/kubectx /usr/local/bin/kubectx && \
+#     ln -s /opt/kubectx/kubens /usr/local/bin/kubens
 
 # Install popular network debugging tools
 RUN apk --no-cache add tcpdump netcat-openbsd bind-tools openssh bash rsync

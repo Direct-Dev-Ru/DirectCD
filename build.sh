@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-TAG="v1.0.14"
+TAG="v1.0.15"
 
 if [ "$1" == "push" ]; then
     echo "pushing"

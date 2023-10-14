@@ -23,29 +23,14 @@ services:
       - label:disable
 
   cdddru:
-    image: kuznetcovay/cdddru:${DOCKER_IMAGE_TAG:-dev-v1.0.1}
+    image: kuznetcovay/cdddru:${DOCKER_IMAGE_TAG:-dev-v1.0.2}
     # image: docker:latest
     container_name: cdddru
     hostname: cdddru-container
     depends_on:
-      - docker    
+      - docker
     command: >
-      /bin/sh -c "sleep 5;                  
-                  mkdir -p /root/.ssh;
-
-                  cp /app/gitcred/id_rsa /root/.ssh/id_rsa;  
-
-                  mkdir -p /root/.docker;
-                  cp /app/dockerconfig/config.json /root/.docker/;
-
-                  mkdir -p /root/.kube;
-                  cp /app/kubeconfig/config /root/.kube/config;
-
-                  chmod 400 /root/.ssh/id_rsa /root/.kube/config /root/.docker/config.json;
-
-                  docker context create builder-context
-                  docker buildx create builder-context --use
-
+      /bin/sh -c "
                   #/app/cdddru -f /app/jobs/config.json -v
                   tail -f /dev/null"
     environment:  
@@ -53,10 +38,9 @@ services:
       - DOCKER_TLS_CERTDIR=""
     working_dir: /source
     volumes:
-      - ./:/testapp
-      - ${HOME}/.docker/config.json:/app/dockerconfig/config.json:ro
-      - ${HOME}/.ssh/id_rsa:/app/gitcred/id_rsa:ro
-      - ${HOME}/.kube/config_ddru:/app/kubeconfig/config:ro
+      - ${HOME}/.docker/config.json:/.bind/configs/dockerconfig/config.json:ro
+      - ${HOME}/.ssh/id_rsa:/.bind/configs/gitcred/id_rsa:ro
+      - ${HOME}/.kube/config_ddru:/.bind/configs/kubeconfig/config:ro
       - dind-docker-certs-client:/certs/client:ro
       - ./:/source
     networks:
