@@ -30,6 +30,7 @@ func (gitcfg *GitConfig) OpenOrCloneRepo(url string, logger *Logger) (gitReposit
 	PrintInfo(logger, "opening or cloning git repo: %s ...", url)
 	gitcfg.publickeys, err = ssh.NewPublicKeysFromFile("git", gitcfg.GIT_PRIVATE_KEY, "")
 	if err != nil {
+		err = fmt.Errorf("generate publickeys failed: %w", err)
 		return
 		// CheckIfError(logger, fmt.Errorf("generate publickeys failed: %w", err), true)
 	}
@@ -44,6 +45,7 @@ func (gitcfg *GitConfig) OpenOrCloneRepo(url string, logger *Logger) (gitReposit
 	if err == nil {
 		gitRepository, err = git.PlainOpen(gitcfg.LOCAL_GIT_FOLDER)
 		if err != nil {
+			err = fmt.Errorf("opening repository failed: %w", err)
 			return
 		}
 		// CheckIfError(logger, err, true)
@@ -56,11 +58,13 @@ func (gitcfg *GitConfig) OpenOrCloneRepo(url string, logger *Logger) (gitReposit
 			ReferenceName: refName,
 		})
 		if err != nil {
+			err = fmt.Errorf("cloning repository failed: %w", err)
 			return
 		}
 		// CheckIfError(logger, err, true)
 	} else {
 		if err != nil {
+			err = fmt.Errorf("checking existing git repo %s failed: %s", gitcfg.LOCAL_GIT_FOLDER, err)
 			return
 			// CheckIfError(logger, fmt.Errorf("check existing git repo %s failed: %s", gitcfg.LOCAL_GIT_FOLDER, err.Error()), true)
 		}
@@ -69,15 +73,16 @@ func (gitcfg *GitConfig) OpenOrCloneRepo(url string, logger *Logger) (gitReposit
 	// Get the git worktree
 	gitWorkTree, err = gitRepository.Worktree()
 	if err != nil {
+		err = fmt.Errorf("getting worktree failed: %w", err)
 		return
 		// CheckIfError(logger, fmt.Errorf("failed to get worktree: %v", err.Error()), true)
 	}
 	return
 }
 
-func (gitcfg *GitConfig) Pull(gitWorkTree *git.Worktree, logger *Logger) error {
+func (gitcfg *GitConfig) Pull(gitWorkTree *git.Worktree, logger *Logger) (err error) {
 
-	var err error = gitWorkTree.Pull(&git.PullOptions{
+	err = gitWorkTree.Pull(&git.PullOptions{
 		// ReferenceName: repoRef.Name(),
 		ReferenceName: plumbing.ReferenceName(gitcfg.branchName),
 		RemoteName:    "origin",
@@ -90,7 +95,7 @@ func (gitcfg *GitConfig) Pull(gitWorkTree *git.Worktree, logger *Logger) error {
 		PrintInfo(logger, "git repo at path: %s is up to date", gitcfg.LOCAL_GIT_FOLDER)
 		return nil
 	} else if err != nil && err != git.NoErrAlreadyUpToDate {
-		return fmt.Errorf("pull error from git lib: %w", err)
+		return fmt.Errorf("pulling git repository failed: %w", err)
 
 		// CheckIfError(logger, fmt.Errorf("pull error from git lib: %w. trying native git pull", err), false)
 
