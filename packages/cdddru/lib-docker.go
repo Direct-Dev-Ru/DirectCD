@@ -20,7 +20,9 @@ import (
 	"github.com/docker/docker/pkg/archive"
 )
 
-func DockerImageBuild(dockerClient *client.Client, imageNameAndTag, contextPath, dockerfile string, logger *Logger) error {
+
+
+func DockerImageBuild(dockerClient *client.Client, imageNameAndTag, contextPath, dockerfile, platform string, logger *Logger) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1200)
 	defer cancel()
 
@@ -29,16 +31,36 @@ func DockerImageBuild(dockerClient *client.Client, imageNameAndTag, contextPath,
 		return err
 	}
 
+	PrintInfo(logger, "%s", filepath.Join(contextPath, dockerfile))
+
+	dockerfile_raw, err := os.ReadFile(filepath.Join(contextPath, dockerfile))
+	if err != nil {
+		return err
+	}
+	newdockerfile_raw := []byte(strings.ReplaceAll(string(dockerfile_raw), "$BUILDPLATFORM", platform))
+
+	err = os.WriteFile(filepath.Join(contextPath, dockerfile+strings.ReplaceAll(platform, "/", "-")), newdockerfile_raw, 0755)
+	if err != nil {
+		return err
+	}
+	PrintInfo(logger, "%s", string(newdockerfile_raw))
+
+	overallImageNameTag := fmt.Sprintf("%s_%s", imageNameAndTag, strings.ReplaceAll(platform, "/", "-"))
 	opts := types.ImageBuildOptions{
-		Dockerfile: dockerfile,
-		Tags:       []string{imageNameAndTag},
+		// Dockerfile: dockerfile,
+		Dockerfile: dockerfile + strings.ReplaceAll(platform, "/", "-"),
+		Tags:       []string{overallImageNameTag},
 		Remove:     true,
+		Platform:   platform,
 	}
 	res, err := dockerClient.ImageBuild(ctx, tar, opts)
 	if err != nil {
 		return err
 	}
-
+	err = os.Remove(filepath.Join(contextPath, dockerfile+strings.ReplaceAll(platform, "/", "-")))
+	if err != nil {
+		return err
+	}
 	defer res.Body.Close()
 
 	err = PrintDockerResponse(res.Body, logger)
@@ -81,17 +103,17 @@ func PrintDockerResponse(rd io.Reader, logger *Logger) error {
 	return nil
 }
 
-func DockerImagePush(dockerClient *client.Client, imageNameAndTag string, cfg Config, logger *Logger) error {
+func DockerImagePush(dockerClient *client.Client, imageNameAndTag, platform string, cfg Config, logger *Logger) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1200)
 	defer cancel()
 
 	var authConfig = registry.AuthConfig{
-		Username:      cfg.DOCKER_USER,
-		Password:      cfg.DOCKER_TOKEN,
-		ServerAddress: cfg.DOCKER_SERVER,
+		Username:      cfg.DOCKER.DOCKER_USER,
+		Password:      cfg.DOCKER.DOCKER_TOKEN,
+		ServerAddress: cfg.DOCKER.DOCKER_SERVER,
 	}
 
-	if len(cfg.DOCKER_TOKEN) == 0 {
+	if len(cfg.DOCKER.DOCKER_TOKEN) == 0 {
 		pathToDockerConfig := filepath.Join(GetEnvVar("HOME", "/root"), ".docker", "config.json")
 		dockerConfig, err := os.ReadFile(pathToDockerConfig)
 		if err != nil {
@@ -102,7 +124,7 @@ func DockerImagePush(dockerClient *client.Client, imageNameAndTag string, cfg Co
 		json.Unmarshal(dockerConfig, dockerAuths)
 
 		for server, auth := range dockerAuths.Auths {
-			if strings.TrimSuffix(server, "/") == strings.TrimSuffix(cfg.DOCKER_SERVER, "/") {
+			if strings.TrimSuffix(server, "/") == strings.TrimSuffix(cfg.DOCKER.DOCKER_SERVER, "/") {
 				innerAuth := auth.Auth
 				decodedAuth, err := base64.StdEncoding.DecodeString(innerAuth)
 				if err != nil {
@@ -120,8 +142,8 @@ func DockerImagePush(dockerClient *client.Client, imageNameAndTag string, cfg Co
 
 	authConfigBytes, _ := json.Marshal(authConfig)
 	authConfigEncoded := base64.URLEncoding.EncodeToString(authConfigBytes)
+	tag := fmt.Sprintf("%s_%s", imageNameAndTag, strings.ReplaceAll(platform, "/", "-"))
 
-	tag := imageNameAndTag
 	opts := types.ImagePushOptions{RegistryAuth: authConfigEncoded}
 	rd, err := dockerClient.ImagePush(ctx, tag, opts)
 	if err != nil {

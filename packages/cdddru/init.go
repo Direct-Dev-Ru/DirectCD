@@ -16,7 +16,7 @@ import (
 
 var FbOnce bool
 var FbVerbose bVerbose
-
+var CurrentWD string
 var Mode string
 
 func Startup(logger *Logger) ([]Config, error) {
@@ -39,31 +39,19 @@ func Startup(logger *Logger) ([]Config, error) {
 
 	flag.BoolVar(&FbOnce, "oncerun", false, "once running and exit")
 
+	CurrentWD, err = os.Getwd()
+	if err != nil {
+		CurrentWD = os.Getenv("HOME")
+	}
+
 	jobsConfigs := make([]Config, 0)
 	err := ParseFlags()
 	if err != nil {
 		return jobsConfigs, fmt.Errorf("failed to parse cmdline args and named parameters: %v", err)
 	}
 
-	// if len(os.Args) == 1 {
-	// 	flag.Usage()
-	// 	os.Exit(1)
-	// }
-
 	// Parse positional arguments
 	args := flag.Args()
-
-	// fmt.Println("args:", args)
-
-	// if len(args) > 0 {
-
-	// }
-	// if len(args) > 1 {
-	// 	*fsJobFile = args[1]
-	// }
-	// if len(args) > 2 {configs[1].JOB_NAME
-	// 	*fsJobName = args[2]
-	// }
 
 	if len(args) == 0 && len(*fsJobFile) == 0 && len(*fsJobFolder) == 0 {
 		usr, err := user.Current()
@@ -85,7 +73,7 @@ func Startup(logger *Logger) ([]Config, error) {
 			}
 		} else {
 			// Running as a binary
-			*fsJobFile = filepath.Join(filepath.Dir(executable), "config.json")
+			*fsJobFolder = filepath.Join(filepath.Dir(executable), "jobs/config.json")
 		}
 	}
 
@@ -125,9 +113,9 @@ func Startup(logger *Logger) ([]Config, error) {
 					if err2 != nil {
 						return err
 					}
-					idx := slices.IndexFunc(jobsConfigs, func(c Config) bool { return c.JOB_NAME == config.JOB_NAME })
+					idx := slices.IndexFunc(jobsConfigs, func(c Config) bool { return c.COMMON.JOB_NAME == config.COMMON.JOB_NAME })
 					if idx >= 0 {
-						err2 = fmt.Errorf("job '%s' already presented in slice", config.JOB_NAME)
+						err2 = fmt.Errorf("job '%s' already presented in slice", config.COMMON.JOB_NAME)
 						return err2
 					}
 					jobsConfigs = append(jobsConfigs, *config)
@@ -176,6 +164,12 @@ func Startup(logger *Logger) ([]Config, error) {
 }
 
 func getOneConfig(configPath string) (*Config, error) {
+
+	if !strings.HasPrefix(configPath, "/") {
+		configPath = filepath.Join(CurrentWD, configPath)
+	}
+	fmt.Println(configPath)
+
 	// Read the config file
 	configFileBytes, err := os.ReadFile(configPath)
 
@@ -204,8 +198,12 @@ func getOneConfig(configPath string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %v", err)
 	}
-	if Mode != "development" && config.CHECK_INTERVAL < 120 {
-		config.CHECK_INTERVAL = 120
+	if Mode != "development" && config.COMMON.CHECK_INTERVAL < 120 {
+		config.COMMON.CHECK_INTERVAL = 120
 	}
+
+	config.COMMON.JOB_PATH = configPath
+	config.SetParentLinks()
+
 	return &config, nil
 }

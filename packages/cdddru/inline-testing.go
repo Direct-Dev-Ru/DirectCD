@@ -16,7 +16,7 @@ func InlineTest(isRun bool, config Config, logger *Logger, isExit bool) {
 		// }
 		// logger.Debug(fmt.Sprintf("%v", ready))
 
-		waitApplyingTimeSeconds := 3 * config.CHECK_INTERVAL / 4
+		waitApplyingTimeSeconds := 3 * config.COMMON.CHECK_INTERVAL / 4
 		intervalToWaitSeconds := waitApplyingTimeSeconds / 5
 		checkIntervals := [5]int{intervalToWaitSeconds, intervalToWaitSeconds, intervalToWaitSeconds, intervalToWaitSeconds, intervalToWaitSeconds}
 		if intervalToWaitSeconds > 120 {

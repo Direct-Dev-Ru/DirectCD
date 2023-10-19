@@ -16,6 +16,7 @@ type GitConfig struct {
 	GIT_PRIVATE_KEY    string `json:"git_private_key" yaml:"git_private_key"`
 	GIT_START_TAG      string `json:"git_start_tag" yaml:"git_start_tag"`
 	GIT_MAX_TAG        string `json:"git_max_tag" yaml:"git_max_tag"`
+	GIT_TARGET_TAG     string `json:"git_target_tag" yaml:"git_target_tag"`
 	GIT_BRANCH         string `json:"git_branch" yaml:"git_branch"`
 	GIT_TAG_PREFIX     string `json:"git_tag_prefix" yaml:"git_tag_prefix"`
 	GIT_START_TAG_FILE string `json:"git_start_tag_file" yaml:"git_start_tag_file"`
@@ -23,6 +24,7 @@ type GitConfig struct {
 	branchName         string
 	publickeys         *ssh.PublicKeys
 	branch             plumbing.ReferenceName
+	parentLink         *Config
 }
 
 func (gitcfg *GitConfig) OpenOrCloneRepo(url string, logger *Logger) (gitRepository *git.Repository, gitWorkTree *git.Worktree, err error) {
@@ -78,6 +80,17 @@ func (gitcfg *GitConfig) OpenOrCloneRepo(url string, logger *Logger) (gitReposit
 		// CheckIfError(logger, fmt.Errorf("failed to get worktree: %v", err.Error()), true)
 	}
 	return
+}
+
+func (gitcfg *GitConfig) CliPull(logger *Logger) (err error) {
+	err = os.Chdir(gitcfg.LOCAL_GIT_FOLDER)
+	if err != nil {
+		return fmt.Errorf("pulling git repository failed: %w", err)
+	}
+	var stdout string
+	stdout, err = RunExternalCmd("", "pulling error:", "git", "pull", "-f", "--tags", "origin", gitcfg.GIT_BRANCH)
+	PrintInfo(logger, "%s", stdout)
+	return err
 }
 
 func (gitcfg *GitConfig) Pull(gitWorkTree *git.Worktree, logger *Logger) (err error) {

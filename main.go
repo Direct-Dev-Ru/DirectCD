@@ -25,7 +25,7 @@ func main() {
 
 	fmt.Println("Job's quantity:", len(jobs))
 	for _, job := range jobs {
-		fmt.Println("Job's Name:", job.JOB_NAME)
+		fmt.Println("Job's Name:", job.COMMON.JOB_NAME)
 	}
 
 	// firstJob := jobs[0]

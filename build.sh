@@ -9,3 +9,5 @@ else
     echo "loading"
     docker buildx build --load --platform=linux/amd64 --progress=plain -t kuznetcovay/cdddru:${TAG} .
 fi
+
+# docker buildx imagetools inspect --raw kuznetcovay/cdddru:${TAG}

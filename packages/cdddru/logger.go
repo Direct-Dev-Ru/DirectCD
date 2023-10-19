@@ -123,6 +123,21 @@ func CheckIfError(logger *Logger, err error, isExit bool) {
 		logger.Error(err.Error())
 	}
 }
+func CheckIfErrorFmt(logger *Logger, err, errfmt error, isExit bool) error {
+	if err == nil {
+		return nil
+	}
+	if errfmt == nil {
+		errfmt = err
+	}
+	if isExit {
+		logger.Fatal(errfmt.Error())
+		panic(errfmt)
+	} else {
+		logger.Error(errfmt.Error())
+	}
+	return errfmt
+}
 
 func PrintDebug(logger *Logger, format string, args ...interface{}) {
 	logger.Debug(fmt.Sprintf(format, args...))

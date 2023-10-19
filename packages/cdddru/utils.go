@@ -2,6 +2,7 @@ package cdddru
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -241,4 +242,20 @@ func Tiif(ifCase bool, vTrue interface{}, vFalse interface{}) interface{} {
 		return vTrue
 	}
 	return vFalse
+}
+
+func CalculateSHA256(filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hash := sha256.New()
+	_, err = io.Copy(hash, file)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }

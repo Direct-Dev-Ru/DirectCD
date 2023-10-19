@@ -16,11 +16,11 @@ import (
 )
 
 func GetDeploymentReadinessStatus(config Config, imageNameTag string) (bool, error) {
-	// kubectl get deployment main-site  -n test-app | grep main-site | awk '{print $2}'
+
 	pipeCommands := [][]string{
-		{"kubectx", config.CONTEXT_K8s},
-		{"kubectl", "get", "deployment", config.DEPLOYMENT_NAME_K8s, "-n", "test-app", "-o", "wide"},
-		{"grep", config.DEPLOYMENT_NAME_K8s + ".*" + imageNameTag},
+		{"kubectx", config.DEPLOY.CONTEXT_K8s},
+		{"kubectl", "get", "deployment", config.DEPLOY.DEPLOYMENT_NAME_K8s, "-n", "test-app", "-o", "wide"},
+		{"grep", config.DEPLOY.DEPLOYMENT_NAME_K8s + ".*" + imageNameTag},
 		{"awk", `{print $2}`},
 	}
 	out, err := RunExternalCmdsPiped("", "pipe error", pipeCommands)
@@ -37,11 +37,11 @@ func GetDeploymentReadinessStatus(config Config, imageNameTag string) (bool, err
 // get current image tag from k8s deployment - we will run kubectl ...
 func GetImageTag(cfg Config) (string, error) {
 
-	var deployment, namespace, dockerImage = cfg.DEPLOYMENT_NAME_K8s, cfg.NAMESPACE_K8s, cfg.DOCKER_IMAGE
+	var deployment, namespace, dockerImage = cfg.DEPLOY.DEPLOYMENT_NAME_K8s, cfg.DEPLOY.NAMESPACE_K8s, cfg.DOCKER.DOCKER_IMAGE
 
-	_, err := RunExternalCmd("", "error while switching to context "+cfg.CONTEXT_K8s, "kubectx", cfg.CONTEXT_K8s)
+	_, err := RunExternalCmd("", "error while switching to context "+cfg.DEPLOY.CONTEXT_K8s, "kubectx", cfg.DEPLOY.CONTEXT_K8s)
 	if err != nil {
-		return "", fmt.Errorf("failed to switch context: %v (%v)", cfg.CONTEXT_K8s, err)
+		return "", fmt.Errorf("failed to switch context: %v (%v)", cfg.DEPLOY.CONTEXT_K8s, err)
 	}
 	// Create a buffer for stderr
 	var errThread bytes.Buffer

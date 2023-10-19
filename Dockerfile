@@ -28,9 +28,8 @@ RUN upx cdddru
 
 # Start a new image
 
-FROM docker:24.0.6-git
+FROM --platform=$BUILDPLATFORM docker:24.0.6-git
 # FROM kuznetcovay/cdddru:dev-v1.0.1
-
 
 # Install necessary dependencies
 RUN apk update

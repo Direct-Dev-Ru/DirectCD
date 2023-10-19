@@ -29,9 +29,9 @@ spec:
         app: cd-ddru-02
     spec:
       containers:
-        # docker in docker container
+        # docker_in_docker container
         - name: dind
-          image: kuznetcovay/dind:v1.0.3
+          image: docker:dind
           resources:
             requests:
               cpu: 500m
@@ -54,11 +54,7 @@ spec:
 
         # container with cdddru binary
         - name: cdddru
-          # image: docker:20.10.24-cli-alpine3.18
-          # image: kuznetcovay/cdddru@sha256:c570517875a89e4f55bc8eb76dd554280a787c8aa4408a65083f58d27efd4caa
-          image: kuznetcovay/cdddru:v1.0.13
-          # command: ["/bin/sh", "-c", "cp /app/gitcred/id_rsa /root/.ssh/id_rsa && chmod 400 /root/.ssh/id_rsa && tail -f /dev/null"]
-          # command: ["/bin/sh", "-c","sleep 3600"]
+          image: kuznetcovay/cdddru:v1.0.15
           resources:
             requests:
               cpu: 250m
@@ -69,28 +65,20 @@ spec:
           command: [
               "/bin/sh",
               "-c",
-              "mkdir -p /root/.ssh;
-              cp /app/gitcred/id_rsa /root/.ssh/id_rsa;
-              mkdir -p /root/.docker;
-              cp /app/dockerconfig/config.json /root/.docker/;
-              mkdir -p /root/.kube;
-              cp /app/kubeconfig/config /root/.kube/;
-              chmod 400 /root/.ssh/id_rsa /root/.kube/config /root/.docker/config.json;
-              # while true; do sleep 30; done;
-              /app/cdddru -f /app/jobs/config.json -v",
+              "/app/cdddru /app/jobs/config-main-ddru.yaml -v;",
             ]
 
           imagePullPolicy: Always
 
           volumeMounts:
             - name: dockerconfig
-              mountPath: /app/dockerconfig
+              mountPath: /.bind/configs/dockerconfig
 
             - name: gitcred
-              mountPath: /app/gitcred
+              mountPath: /.bind/configs/gitcred
 
             - name: kubeconfig
-              mountPath: /app/kubeconfig
+              mountPath: /.bind/configs/kubeconfig
 
               # volume from home nas server to sync main-site data
             - name: site-data
@@ -109,6 +97,7 @@ spec:
           env:
             - name: DOCKER_HOST
               value: tcp://localhost:2375
+
             - name: DOCKER_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -124,6 +113,16 @@ spec:
                 secretKeyRef:
                   name: dockerhub-token
                   key: server
+            - name: GIT_CRED
+              valueFrom:
+                secretKeyRef:
+                  name: gitcred
+                  key: id_rsa
+            - name: KUBE_CRED
+              valueFrom:
+                secretKeyRef:
+                  name: kubeconfig
+                  key: config
 
       nodeSelector:
         kubernetes.io/hostname: n150-netbook

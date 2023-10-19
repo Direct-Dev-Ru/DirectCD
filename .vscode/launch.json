@@ -11,7 +11,7 @@
         "request": "launch",
         "mode": "debug",
         "env": { "MODE": "development", "REDIS_PWD":"!mySuperPwd0" },
-        "args": ["./jobs-dev/config-assets-dev.yaml"],
+        "args": ["./jobs-dev/config-dev.yaml"],
         "program": "${workspaceRoot}"
       }
     ]
