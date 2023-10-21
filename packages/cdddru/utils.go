@@ -259,3 +259,36 @@ func CalculateSHA256(filePath string) (string, error) {
 
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
+
+func IsPathExists(path string) (isExist bool, isDir bool, err error) {
+	s, err := os.Stat(path)
+	if err == nil {
+		return true, s.IsDir(), nil
+	}
+	if os.IsNotExist(err) {
+		return false, false, nil
+	}
+	return false, false, err
+}
+
+
+func CopyFile(src, dst string) error {
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+
+	_, err = io.Copy(destination, source)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

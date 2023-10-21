@@ -1,18 +1,21 @@
 #!/bin/sh
 
-sleep 5; 
+sleep 3; 
 
 mkdir -p /root/.ssh;
 
-cp /.bind/configs/gitcred/id_rsa /root/.ssh/id_rsa;  
+# cp /.bind/configs/gitcred/id_rsa /root/.ssh/id_rsa;  
 
 mkdir -p /root/.docker;
-cp /.bind/configs/dockerconfig/config.json /root/.docker/config.json;
+rm /root/.docker/config.json;
+# cp /.bind/configs/dockerconfig/config.json /root/.docker/config.json;
 
 mkdir -p /root/.kube;
-cp /.bind/configs/kubeconfig/config /root/.kube/config;
+# cp /.bind/configs/kubeconfig/config /root/.kube/config;
 
-chmod 400 /root/.ssh/id_rsa /root/.kube/config /root/.docker/config.json;
+# chmod 400 /root/.ssh/id_rsa 
+# chmod 400 /root/.docker/config.json;
+# chmod 400 /root/.kube/config /root/.docker/config.json;
 
 # apk add zsh-vcs
 
@@ -24,3 +27,4 @@ if [ $# -eq 0 ]; then
 else
     exec "$@"
 fi
+# MODE="development" go run . jobs-dev/config-dev.yaml 

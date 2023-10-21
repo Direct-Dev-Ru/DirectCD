@@ -44,6 +44,8 @@ type Config struct {
 	DEPLOY DeployConfig `json:"Deploy" yaml:"Deploy"`
 
 	SYNC SyncConfig `json:"Sync" yaml:"Sync"`
+
+	logger *Logger
 }
 
 type CommonConfig struct {

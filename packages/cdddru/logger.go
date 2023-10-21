@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 
 	"github.com/fatih/color"
 )
@@ -53,24 +54,39 @@ func NewLogger(out io.Writer, outError io.Writer, level LogLevel, jobName string
 }
 
 func (l *Logger) Debug(msg string) {
+	if len(strings.TrimSpace(msg)) == 0 {
+		msg = "[passed empty message to logger]"
+	}
 	if l.logLevel <= DebugLevel {
 		l.debugLogger.Println(msg)
 	}
 }
 
 func (l *Logger) Warning(msg string) {
+	if msg == "" {
+		msg = "[passed empty message to logger]"
+	}
+
 	if l.logLevel <= WarnLevel {
 		l.warnLogger.Println(msg)
 	}
 }
 
 func (l *Logger) Info(msg string) {
+	if msg == "" {
+		msg = "[passed empty message to logger]"
+	}
+
 	if l.logLevel <= InfoLevel {
 		l.infoLogger.Println(msg)
 	}
 }
 
 func (l *Logger) InfoJson(msg string) {
+	if msg == "" {
+		msg = "[passed empty message to logger]"
+	}
+
 	jsonMsg, err := PrettyJsonEncodeToString(msg)
 	if err != nil {
 		l.Error(err.Error())
@@ -81,16 +97,28 @@ func (l *Logger) InfoJson(msg string) {
 }
 
 func (l *Logger) DebugJson(msg string) {
+	if msg == "" {
+		msg = "[passed empty message to logger]"
+	}
+
 	jsonMsg, _ := PrettyJsonEncodeToString(msg)
 	l.Debug(jsonMsg)
 }
 
 func (l *Logger) WarningJson(msg string) {
+	if msg == "" {
+		msg = "[passed empty message to logger]"
+	}
+
 	jsonMsg, _ := PrettyJsonEncodeToString(msg)
 	l.Warning(jsonMsg)
 }
 
 func (l *Logger) ErrorJson(msg string) {
+	if msg == "" {
+		msg = "[passed empty message to logger]"
+	}
+
 	jsonMsg, err := PrettyJsonEncodeToString(msg)
 	if err != nil {
 		l.Error(err.Error())
@@ -100,12 +128,20 @@ func (l *Logger) ErrorJson(msg string) {
 }
 
 func (l *Logger) Error(msg string) {
+	if msg == "" {
+		msg = "[passed empty message to logger]"
+	}
+
 	if l.logLevel <= ErrorLevel {
 		l.errorLogger.Println(msg)
 	}
 }
 
 func (l *Logger) Fatal(msg string) {
+	if msg == "" {
+		msg = "[passed empty message to logger]"
+	}
+
 	if l.logLevel <= ErrorLevel {
 		l.fatalLogger.Println(msg)
 	}
@@ -132,11 +168,13 @@ func CheckIfErrorFmt(logger *Logger, err, errfmt error, isExit bool) error {
 	}
 	if isExit {
 		logger.Fatal(errfmt.Error())
-		panic(errfmt)
+		// panic(errfmt)
+		return errfmt
 	} else {
 		logger.Error(errfmt.Error())
+		return nil
 	}
-	return errfmt
+
 }
 
 func PrintDebug(logger *Logger, format string, args ...interface{}) {

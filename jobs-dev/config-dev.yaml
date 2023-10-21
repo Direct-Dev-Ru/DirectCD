@@ -7,7 +7,9 @@ Common:
 Git:
   do_git_clone: true
   git_repo_url: git@github.com:Direct-Dev-Ru/http2-nodejs-ddru.git
-  git_private_key: "{{$HOME}}/.ssh/id_rsa_1"
+  # git_private_key: "{{$HOME}}/.ssh/id_rsa_1"
+  # can be setted as "VAR:SOME_ENV_VAR_NAME"
+  git_private_key: "/run/configs/gitcred/id_rsa"
   git_branch: main
   git_tag_prefix: v
   git_start_tag: v0.0.0

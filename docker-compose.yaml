@@ -38,9 +38,12 @@ services:
       - DOCKER_TLS_CERTDIR=""
     working_dir: /source
     volumes:
-      - ${HOME}/.docker/config.json:/.bind/configs/dockerconfig/config.json:ro
-      - ${HOME}/.ssh/id_rsa:/.bind/configs/gitcred/id_rsa:ro
-      - ${HOME}/.kube/config_ddru:/.bind/configs/kubeconfig/config:ro
+      # - ${HOME}/.docker/config.json:/.bind/configs/dockerconfig/config.json:ro
+      # - ${HOME}/.ssh/id_rsa:/.bind/configs/gitcred/id_rsa:ro
+      # - ${HOME}/.kube/config_ddru:/.bind/configs/kubeconfig/config:ro
+      - ${HOME}/.docker/config.json:/run/configs/dockerconfig/config.json:ro
+      - ${HOME}/.ssh/id_rsa:/run/configs/gitcred/id_rsa:ro
+      - ${HOME}/.kube/config_ddru:/run/configs/kubeconfig/config:ro
       - dind-docker-certs-client:/certs/client:ro
       - ./:/source
     networks:

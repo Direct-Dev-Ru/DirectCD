@@ -15,7 +15,7 @@ import (
 	plumbing "github.com/go-git/go-git/v5/plumbing"
 )
 
-func GetDeploymentReadinessStatus(config Config, imageNameTag string) (bool, error) {
+func GetDeploymentReadinessStatus(config *Config, imageNameTag string) (bool, error) {
 
 	pipeCommands := [][]string{
 		{"kubectx", config.DEPLOY.CONTEXT_K8s},
@@ -35,7 +35,7 @@ func GetDeploymentReadinessStatus(config Config, imageNameTag string) (bool, err
 }
 
 // get current image tag from k8s deployment - we will run kubectl ...
-func GetImageTag(cfg Config) (string, error) {
+func GetImageTag(cfg *Config) (string, error) {
 
 	var deployment, namespace, dockerImage = cfg.DEPLOY.DEPLOYMENT_NAME_K8s, cfg.DEPLOY.NAMESPACE_K8s, cfg.DOCKER.DOCKER_IMAGE
 

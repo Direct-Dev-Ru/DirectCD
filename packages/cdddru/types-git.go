@@ -2,12 +2,16 @@ package cdddru
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strings"
 
 	git "github.com/go-git/go-git/v5"
 	plumbing "github.com/go-git/go-git/v5/plumbing"
 	ssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	xssh "golang.org/x/crypto/ssh"
+	xagent "golang.org/x/crypto/ssh/agent"
 )
 
 type GitConfig struct {
@@ -25,6 +29,82 @@ type GitConfig struct {
 	publickeys         *ssh.PublicKeys
 	branch             plumbing.ReferenceName
 	parentLink         *Config
+	needAuth           bool
+}
+
+func (gitcfg *GitConfig) AddKeyToSshAgent() (err error) {
+	var rawPrivateKeySsh []byte
+	cmdout := ""
+	logger := gitcfg.parentLink.logger
+	if strings.HasPrefix(gitcfg.GIT_REPO_URL, "git") {
+		gitcfg.needAuth = true
+	}
+	if gitcfg.needAuth {
+		privateKeyFile := gitcfg.GIT_PRIVATE_KEY
+		privateKeyVarName := ""
+		if strings.HasPrefix(gitcfg.GIT_PRIVATE_KEY, "VAR:") {
+			privateKeyVarName = strings.Split(gitcfg.GIT_PRIVATE_KEY, ":")[1]
+			privateKeyFile = ""
+		}
+		_ = privateKeyVarName
+
+		// if private key from file we should take
+		if len(privateKeyFile) > 0 {
+			rawPrivateKeySsh, err = os.ReadFile(privateKeyFile)
+			if err != nil {
+				return fmt.Errorf("read ssh private key file %s failed: %w", privateKeyFile, err)
+			}
+		} else {
+			if k := os.Getenv(privateKeyVarName); len(k) > 0 {
+				rawPrivateKeySsh = []byte(k)
+			} else {
+				return fmt.Errorf("ssh private key? given by var %s is invalid or nil", privateKeyVarName)
+			}
+		}
+
+		if os.Getenv("SSH_AUTH_SOCK") == "" {
+			// Start a new ssh-agent
+			cmdout, err := RunExternalCmd("", "", "ssh-agent", "-s")
+			if err != nil {
+				return fmt.Errorf("getting script for ssh agent failed: %w", err)
+			}
+			outparts := strings.Split(cmdout, ";")
+			outparts = strings.Split(outparts[0], "=")
+			os.Setenv(outparts[0], outparts[1])
+			PrintDebug(logger, "we use ssh-agent %s", os.Getenv("SSH_AUTH_SOCK"))
+
+		}
+
+		// Connect to the ssh-agent
+		var conn net.Conn
+		conn, err = net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
+		if err != nil {
+			return fmt.Errorf("connecting to ssh-agent unix socket failed: %w", err)
+		}
+		defer conn.Close()
+
+		// Parse the private key
+		parsedPrivateKey, err := xssh.ParseRawPrivateKey(rawPrivateKeySsh)
+		if err != nil {
+			return fmt.Errorf("parsing ssh private key file %s failed: %w", privateKeyFile, err)
+		}
+		agentClient := xagent.NewClient(conn)
+		if agentClient == nil {
+			return fmt.Errorf("ssh agent client init failed")
+		}
+		// Add the private key to the ssh-agent
+		err = agentClient.Add(xagent.AddedKey{
+			PrivateKey: parsedPrivateKey,
+		})
+		if err != nil {
+			return fmt.Errorf("parsing ssh private key file %s failed: %w", privateKeyFile, err)
+		}
+
+		cmdout, err = RunExternalCmd("", "list ssh-agent failed", "ssh-add", "-l")
+		CheckIfErrorFmt(logger, err, fmt.Errorf("add key to ssh-agent failed: %w", err), false)
+		PrintInfo(logger, "%s", cmdout)
+	}
+	return nil
 }
 
 func (gitcfg *GitConfig) OpenOrCloneRepo(url string, logger *Logger) (gitRepository *git.Repository, gitWorkTree *git.Worktree, err error) {

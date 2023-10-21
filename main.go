@@ -4,6 +4,7 @@ import (
 	lib "cdddru-tool/packages/cdddru"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -33,16 +34,32 @@ func main() {
 	// if len(jobs) > 1 {
 	// 	seconfJob = jobs[1]
 	// }
-	lib.InlineTest(false, jobs[0], logger, true)
+	lib.InlineTest(false, *jobs[0], logger, true)
 
 	for _, job := range jobs {
 		wg.Add(1)
 		go lib.RunOneJob(job, &wg)
 	}
 
+	// sigCh := make(chan os.Signal, 1)
+	// // Notify the sigCh channel when a SIGINT signal is received (Ctrl-C)
+	// signal.Notify(sigCh, syscall.SIGINT)
+
+	// go func() {
+	// 	<-sigCh
+	// 	CtrCHandler()
+	// }()
+
 	// wg.Add(1)
 	// go lib.RunOneJob(firstJob, &wg)
 	// wg.Add(1)
 	// go lib.RunOneJob(seconfJob, &wg)
 	wg.Wait()
+}
+
+func CtrCHandler() {
+	err := os.Remove(filepath.Join(os.Getenv("HOME"), ".docker", "config.json"))
+	if err != nil {
+		fmt.Println("docker config delete error", err)
+	}
 }

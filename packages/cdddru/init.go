@@ -19,7 +19,7 @@ var FbVerbose bVerbose
 var CurrentWD string
 var Mode string
 
-func Startup(logger *Logger) ([]Config, error) {
+func Startup(logger *Logger) ([]*Config, error) {
 
 	// Define named flags
 	fsJobFolder := flag.String("jobsfolder", "", "Input directory with jobs to execute")
@@ -44,7 +44,7 @@ func Startup(logger *Logger) ([]Config, error) {
 		CurrentWD = os.Getenv("HOME")
 	}
 
-	jobsConfigs := make([]Config, 0)
+	jobsConfigs := make([]*Config, 0)
 	err := ParseFlags()
 	if err != nil {
 		return jobsConfigs, fmt.Errorf("failed to parse cmdline args and named parameters: %v", err)
@@ -113,12 +113,12 @@ func Startup(logger *Logger) ([]Config, error) {
 					if err2 != nil {
 						return err
 					}
-					idx := slices.IndexFunc(jobsConfigs, func(c Config) bool { return c.COMMON.JOB_NAME == config.COMMON.JOB_NAME })
+					idx := slices.IndexFunc(jobsConfigs, func(c *Config) bool { return c.COMMON.JOB_NAME == config.COMMON.JOB_NAME })
 					if idx >= 0 {
 						err2 = fmt.Errorf("job '%s' already presented in slice", config.COMMON.JOB_NAME)
 						return err2
 					}
-					jobsConfigs = append(jobsConfigs, *config)
+					jobsConfigs = append(jobsConfigs, config)
 
 				}
 			}
@@ -126,7 +126,7 @@ func Startup(logger *Logger) ([]Config, error) {
 		})
 
 		if err != nil {
-			return make([]Config, 0), err
+			return make([]*Config, 0), err
 		}
 		return jobsConfigs, nil
 	}
@@ -147,7 +147,7 @@ func Startup(logger *Logger) ([]Config, error) {
 			if err != nil {
 				return jobsConfigs, err
 			}
-			jobsConfigs = append(jobsConfigs, *config)
+			jobsConfigs = append(jobsConfigs, config)
 		}
 		if len(args) > 0 {
 			for _, cfgPath := range args {
@@ -156,7 +156,7 @@ func Startup(logger *Logger) ([]Config, error) {
 				if err != nil {
 					return jobsConfigs, err
 				}
-				jobsConfigs = append(jobsConfigs, *config)
+				jobsConfigs = append(jobsConfigs, config)
 			}
 		}
 	}

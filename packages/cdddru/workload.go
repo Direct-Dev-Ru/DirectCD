@@ -3,44 +3,39 @@ package cdddru
 import (
 	"fmt"
 	"math"
-	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	git "github.com/go-git/go-git/v5"
 	plumbing "github.com/go-git/go-git/v5/plumbing"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 	// memory "github.com/go-git/go-git/v5/storage/memory"
 )
 
-func RunOneJob(config Config, wg *sync.WaitGroup) {
+func RunOneJob(config *Config, wg *sync.WaitGroup) {
 	var err error
 	var originalSHA, currentSHA string
 
 	logLevel := Tiif(bool(FbVerbose), DebugLevel, InfoLevel).(LogLevel)
 	logger := NewLogger(os.Stdout, os.Stderr, logLevel, config.COMMON.JOB_NAME)
+	config.logger = logger
 	defer func() {
 		wg.Done()
 		if v := recover(); v != nil {
 			PrintFatal(logger, "job '%v' completes with fatal error: %v", config.COMMON.JOB_NAME, v)
 		}
 	}()
-
 	if !config.COMMON.IS_ACTIVE {
-		PrintInfo(logger, "job %s completes", config.COMMON.JOB_NAME)
+		PrintInfo(logger, "job %s is not active", config.COMMON.JOB_NAME)
 		return
 	}
-
 	originalSHA, err = CalculateSHA256(config.COMMON.JOB_PATH)
 	if err != nil {
 		CheckIfErrorFmt(logger, err, fmt.Errorf("calculate SHA256 error: %w", err), true)
 	}
 
-	// logger.Debug(fmt.Sprint(PrettyJsonEncodeToString(config)))
+	logger.Debug(fmt.Sprint(PrettyJsonEncodeToString(config)))
 
 	// we trying read saved file with tag applyed if it is not exists we try to detect image version from kubectl
 	pathToStoreStartTag := config.GIT.GIT_START_TAG_FILE
@@ -50,11 +45,12 @@ func RunOneJob(config Config, wg *sync.WaitGroup) {
 	pathToStoreStartTag += "." + config.COMMON.JOB_NAME
 
 	err = os.MkdirAll(filepath.Dir(pathToStoreStartTag), 0700)
-	CheckIfError(logger, err, true)
+	CheckIfError(logger, err, false)
 
 	var startImageTag, currentClusterImageTag string
 	var errK8s error
 	rawStartImageTag, err := os.ReadFile(pathToStoreStartTag)
+	CheckIfError(logger, err, false)
 
 	if config.DEPLOY.DO_MANIFEST_DEPLOY {
 		// Here we get from cluster tag version it is currently running
@@ -87,71 +83,22 @@ func RunOneJob(config Config, wg *sync.WaitGroup) {
 	CheckIfError(logger, err, true)
 
 	var url, privateKeyFile string
-	var rawPrivateKeySsh []byte
 
 	url, privateKeyFile = config.GIT.GIT_REPO_URL, config.GIT.GIT_PRIVATE_KEY
+	_ = privateKeyFile
 
-	// checking existing of private_key_file and halt app if it doesnt exists or othe error
-	sshAuthByFileIsReady := false
-	cmdout := ""
-	if len(privateKeyFile) > 0 {
-		rawPrivateKeySsh, err = os.ReadFile(privateKeyFile)
-		CheckIfErrorFmt(logger, err, fmt.Errorf("read ssh private key file %s failed: %w", privateKeyFile, err), false)
-		sshAuthByFileIsReady = true
-		PrintInfo(logger, "%s", string(rawPrivateKeySsh))
-
-		if os.Getenv("SSH_AUTH_SOCK") == "" {
-			// Start a new ssh-agent
-			cmdout, err := RunExternalCmd("", "", "ssh-agent", "-s")
-			CheckIfErrorFmt(logger, err, fmt.Errorf("get script for ssh agent failed: %w", err), false)
-			parts := strings.Split(cmdout, ";")
-			parts = strings.Split(parts[0], "=")
-			os.Setenv(parts[0], parts[1])
-			PrintInfo(logger, "%s", os.Getenv("SSH_AUTH_SOCK"))
-
-			// cmdout, err = RunExternalCmd("", "", "sh", "-c", cmdout)
-			// CheckIfErrorFmt(logger, err, fmt.Errorf("start ssh agent failed: %w", err), false)
-			// PrintInfo(logger, "%s", cmdout)
-
-		} else {
-			fmt.Println("SSH agent is already running.")
-			fmt.Println(os.Getenv("SSH_AUTH_SOCK"))
-		}
-
-		// Connect to the ssh-agent
-
-		conn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
-		CheckIfErrorFmt(logger, err, fmt.Errorf("connecting to ssh-agent unix soket failed: %w", err), true)
-		defer conn.Close()
-
-		// Parse the private key
-		privateKey, err := ssh.ParseRawPrivateKey(rawPrivateKeySsh)
-		CheckIfErrorFmt(logger, err, fmt.Errorf("parsing ssh private key file %s failed: %w", privateKeyFile, err), true)
-
-		agentClient := agent.NewClient(conn)
-
-		// Add the private key to the ssh-agent
-		err = agentClient.Add(agent.AddedKey{
-			PrivateKey: privateKey,
-		})
-		CheckIfErrorFmt(logger, err, fmt.Errorf("parsing ssh private key file %s failed: %w", privateKeyFile, err), true)
-
-		fmt.Println("Private key added to ssh-agent")
-
-		cmdout, err = RunExternalCmd("", "list ssh-agent failed", "ssh-add", "-l")
-		CheckIfErrorFmt(logger, err, fmt.Errorf("add key to ssh-agent failed: %w", err), true)
-		fmt.Println(cmdout)
-
-	}
-	if !sshAuthByFileIsReady {
-		// export SSH_PRIVATE_KEY="-----BEGIN OPENSSH PRIVATE KEY-----\n..."
-		// eval $(ssh-agent -s)
-		// echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
-	}
+	// checking existing of private_key_file and halt app if it doesnt exists or other error
+	// but only if url don't starts from http protocol
 
 	// Clone the given repository to the given localRepoPath
 	var gitRepository *git.Repository
 	var gitWorkTree *git.Worktree
+
+	err = config.GIT.AddKeyToSshAgent()
+	if err != nil {
+		CheckIfError(logger, err, true)
+		return
+	}
 
 	gitRepository, gitWorkTree, err = config.GIT.OpenOrCloneRepo(url, logger)
 	if err != nil {
@@ -166,16 +113,15 @@ func RunOneJob(config Config, wg *sync.WaitGroup) {
 		CheckIfError(logger, fmt.Errorf("failed checkout %s branch: %v", config.GIT.GIT_BRANCH, err), true)
 	}
 
-	// if start tag is equal or greater than max possible tag given in config -> exit tool
+	// if start tag is equal or greater than max possible tag given in config -> exit job
 	if res, _ := CompareTwoTags(startImageTag, config.GIT.GIT_MAX_TAG, config.GIT.GIT_TAG_PREFIX); res != 1 {
-		if err != nil {
-			CheckIfError(logger, fmt.Errorf("current tag: %s is equal or greater than max possible: '%s'", startImageTag, config.GIT.GIT_MAX_TAG), true)
-		}
+		PrintFatal(logger, "current tag: %s is equal or greater than max possible (exiting): '%s'", startImageTag, config.GIT.GIT_MAX_TAG)
+		return
 	}
 
 	// starting loop here
 	gitCurrentTag := startImageTag
-	PrintInfo(logger, "start checking for updates => start git tag version: '%s'", gitCurrentTag)
+	PrintInfo(logger, "start checking for updates => start git tag version: %s", gitCurrentTag)
 
 	// cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	// CheckIfError(logger, err, true)
@@ -188,7 +134,7 @@ func RunOneJob(config Config, wg *sync.WaitGroup) {
 
 	for i := 0; i < nCount; i++ {
 		currentTagsCommitHash, _ := GetCommitHashByTag(gitRepository, gitCurrentTag)
-
+		// checkout to branch given in config
 		err = gitWorkTree.Checkout(&git.CheckoutOptions{
 			Branch: plumbing.ReferenceName(config.GIT.branchName),
 			Force:  true,
@@ -229,7 +175,6 @@ func RunOneJob(config Config, wg *sync.WaitGroup) {
 		if nMaxTag > curTag {
 			bDoUpgrade = true
 		}
-
 		if strMaxTag == gitCurrentTag {
 			bDoUpgrade = strMaxTagCommitHash != currentTagsCommitHash
 		}
@@ -256,7 +201,7 @@ func RunOneJob(config Config, wg *sync.WaitGroup) {
 			})
 			CheckIfErrorFmt(logger, err, fmt.Errorf("error checkout to tag: %v", err), true)
 
-			PrintInfo(logger, "successfull checkout to tag %s hash: %v\n", strMaxTag, refTag)
+			PrintInfo(logger, "successfully checkout to tag %s hash: %v\n", strMaxTag, refTag)
 
 			// final docker image name with tag
 			imageNameTag := fmt.Sprintf("%s:%s", config.DOCKER.DOCKER_IMAGE, strMaxTag)
@@ -265,9 +210,15 @@ func RunOneJob(config Config, wg *sync.WaitGroup) {
 			var platforms []string = []string{"linux/arm64", "linux/amd64"}
 			// if we say in config to do docker build
 			if config.DOCKER.DO_DOCKER_BUILD {
+
+				config.DOCKER.SetAuth("/run/configs/dockerconfig/")
+
 				// we use buildx to make multy-arch image
 				err = config.DOCKER.DockerImageBuildx(imageNameTag, config.GIT.LOCAL_GIT_FOLDER, platforms, logger)
-				CheckIfErrorFmt(logger, err, fmt.Errorf("building image %s failed: %w", imageNameTag, err), true)
+				if e := CheckIfErrorFmt(logger, err, fmt.Errorf("building image %s failed: %w", imageNameTag, err), true); e != nil {
+					PrintInfo(logger, "job %s failed and closed", config.COMMON.JOB_NAME)
+					return
+				}
 				PrintInfo(logger, "successfully build image %s", imageNameTag)
 
 				// building docker image for different platforms
@@ -294,7 +245,7 @@ func RunOneJob(config Config, wg *sync.WaitGroup) {
 				PrintInfo(logger, "start sync subfolder for tag %s", strMaxTag)
 				err = Rsync(config.SYNC.TARGET_FOLDER, filepath.Join(config.GIT.LOCAL_GIT_FOLDER, config.SYNC.GIT_SUB_FOLDER))
 				CheckIfError(logger, err, true)
-				PrintInfo(logger, "successfull sync of subfolder for tag %s", strMaxTag)
+				PrintInfo(logger, "successfully sync subfolder for tag %s", strMaxTag)
 			}
 
 			if config.DEPLOY.DO_MANIFEST_DEPLOY {
@@ -377,11 +328,16 @@ func RunOneJob(config Config, wg *sync.WaitGroup) {
 					PrintInfo(logger, "job %s completes", config.COMMON.JOB_NAME)
 					return
 				}
-				config = *newConfig
+				config = newConfig
 				if !config.COMMON.IS_ACTIVE {
 					PrintInfo(logger, "job %s completes", config.COMMON.JOB_NAME)
 					return
 				}
+				wg.Add(1)
+				go RunOneJob(config, wg)
+				PrintInfo(logger, "job %s now restarting", config.COMMON.JOB_NAME)
+				return
+
 			}
 
 			time.Sleep(time.Duration(config.COMMON.CHECK_INTERVAL-totalWaitSeconds) * time.Second)
