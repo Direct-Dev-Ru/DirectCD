@@ -53,12 +53,13 @@ type CommonConfig struct {
 	JOB_NAME       string `json:"job_name" yaml:"job_name" `
 	JOB_TYPE       string `json:"job_type" yaml:"job_type"`
 	CHECK_INTERVAL int    `json:"check_interval" yaml:"check_interval"`
-	IS_ACTIVE      bool   `json:"is_active,string,omitempty" yaml:"is_active"`
+	IS_ACTIVE      bool   `json:"is_active,string" yaml:"is_active"`
 	parentLink     *Config
 }
 
 type DeployConfig struct {
-	DO_MANIFEST_DEPLOY  bool   `json:"do_manifest_deploy,string,omitempty" yaml:"do_manifest_deploy"`
+	DO_MANIFEST_DEPLOY  bool   `json:"do_manifest_deploy,string" yaml:"do_manifest_deploy"`
+	DO_WATCH_IMAGE_TAG  bool   `json:"do_watch_image_tag" yaml:"do_watch_image_tag"`
 	CONTEXT_K8s         string `json:"context_k8s" yaml:"context_k8s"`
 	NAMESPACE_K8s       string `json:"namespace_k8s" yaml:"namespace_k8s"`
 	DEPLOYMENT_NAME_K8s string `json:"deployment_name_k8s" yaml:"deployment_name_k8s"`
@@ -67,7 +68,7 @@ type DeployConfig struct {
 }
 
 type SyncConfig struct {
-	DO_SUBFOLDER_SYNC bool   `json:"do_subfolder_sync,string,omitempty" yaml:"do_subfolder_sync"`
+	DO_SUBFOLDER_SYNC bool   `json:"do_subfolder_sync,string" yaml:"do_subfolder_sync"`
 	GIT_SUB_FOLDER    string `json:"git_sub_folder" yaml:"git_sub_folder"`
 	TARGET_FOLDER     string `json:"target_folder" yaml:"target_folder"`
 	parentLink        *Config

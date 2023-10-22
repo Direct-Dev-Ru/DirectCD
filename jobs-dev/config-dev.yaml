@@ -23,12 +23,16 @@ Docker:
   do_docker_build: true
   docker_file: Dockerfile
   docker_image: kuznetcovay/ddru
+  docker_platforms:
+    - linux/amd64
+    - linux/arm64
   docker_server: https://index.docker.io/v1/
   docker_token: "{{$DOCKER_TOKEN}}"
   docker_user: kuznetcovay
 
 Deploy:
   do_manifest_deploy: false
+  do_watch_image_tag: false
   context_k8s: default
   namespace_k8s: test-app
   deployment_name_k8s: main-site

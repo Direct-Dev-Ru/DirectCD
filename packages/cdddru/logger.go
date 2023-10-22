@@ -148,15 +148,16 @@ func (l *Logger) Fatal(msg string) {
 }
 
 // CheckIfError should be used to naively panics if an error is not nil.
-func CheckIfError(logger *Logger, err error, isExit bool) {
+func CheckIfError(logger *Logger, err error, isExit bool) error {
 	if err == nil {
-		return
+		return nil
 	}
 	if isExit {
-		logger.Fatal(err.Error())
+		// logger.Fatal(err.Error())
 		panic(err)
 	} else {
 		logger.Error(err.Error())
+		return err
 	}
 }
 func CheckIfErrorFmt(logger *Logger, err, errfmt error, isExit bool) error {
@@ -167,9 +168,8 @@ func CheckIfErrorFmt(logger *Logger, err, errfmt error, isExit bool) error {
 		errfmt = err
 	}
 	if isExit {
-		logger.Fatal(errfmt.Error())
-		// panic(errfmt)
-		return errfmt
+		// logger.Fatal(errfmt.Error())
+		panic(errfmt)
 	} else {
 		logger.Error(errfmt.Error())
 		return nil

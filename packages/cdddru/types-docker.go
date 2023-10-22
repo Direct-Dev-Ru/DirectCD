@@ -9,13 +9,14 @@ import (
 )
 
 type DockerConfig struct {
-	DO_DOCKER_BUILD bool   `json:"do_docker_build,string,omitempty" yaml:"do_docker_build"`
-	DOCKER_FILE     string `json:"docker_file" yaml:"docker_file"`
-	DOCKER_IMAGE    string `json:"docker_image" yaml:"docker_image"`
-	DOCKER_SERVER   string `json:"docker_server" yaml:"docker_server"`
-	DOCKER_USER     string `json:"docker_user" yaml:"docker_user"`
-	DOCKER_TOKEN    string `json:"docker_token" yaml:"docker_token"`
-	parentLink      *Config
+	DO_DOCKER_BUILD  bool     `json:"do_docker_build" yaml:"do_docker_build"`
+	DOCKER_FILE      string   `json:"docker_file" yaml:"docker_file"`
+	DOCKER_IMAGE     string   `json:"docker_image" yaml:"docker_image"`
+	DOCKER_PLATFORMS []string `json:"docker_platforms" yaml:"docker_platforms"`
+	DOCKER_SERVER    string   `json:"docker_server" yaml:"docker_server"`
+	DOCKER_USER      string   `json:"docker_user" yaml:"docker_user"`
+	DOCKER_TOKEN     string   `json:"docker_token" yaml:"docker_token"`
+	parentLink       *Config
 }
 
 type dockerConfig struct {

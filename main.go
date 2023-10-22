@@ -4,8 +4,10 @@ import (
 	lib "cdddru-tool/packages/cdddru"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sync"
+	"syscall"
 )
 
 func main() {
@@ -41,14 +43,14 @@ func main() {
 		go lib.RunOneJob(job, &wg)
 	}
 
-	// sigCh := make(chan os.Signal, 1)
-	// // Notify the sigCh channel when a SIGINT signal is received (Ctrl-C)
-	// signal.Notify(sigCh, syscall.SIGINT)
+	sigCh := make(chan os.Signal, 1)
+	// Notify the sigCh channel when a SIGINT signal is received (Ctrl-C)
+	signal.Notify(sigCh, syscall.SIGINT)
 
-	// go func() {
-	// 	<-sigCh
-	// 	CtrCHandler()
-	// }()
+	go func() {
+		<-sigCh
+		CtrCHandler()
+	}()
 
 	// wg.Add(1)
 	// go lib.RunOneJob(firstJob, &wg)
@@ -62,4 +64,5 @@ func CtrCHandler() {
 	if err != nil {
 		fmt.Println("docker config delete error", err)
 	}
+	os.Exit(130)
 }
