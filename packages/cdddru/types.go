@@ -1,10 +1,13 @@
 package cdddru
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -54,12 +57,18 @@ type CommonConfig struct {
 	JOB_TYPE       string `json:"job_type" yaml:"job_type"`
 	CHECK_INTERVAL int    `json:"check_interval" yaml:"check_interval"`
 	IS_ACTIVE      bool   `json:"is_active,string" yaml:"is_active"`
+	VARIABLE_1     string `json:"variable_1" yaml:"variable_1"`
+	VARIABLE_2     string `json:"variable_2" yaml:"variable_2"`
+	VARIABLE_3     string `json:"variable_3" yaml:"variable_3"`
+	VARIABLE_4     string `json:"variable_4" yaml:"variable_4"`
+	VARIABLE_5     string `json:"variable_5" yaml:"variable_5"`
 	parentLink     *Config
 }
 
 type DeployConfig struct {
 	DO_MANIFEST_DEPLOY  bool   `json:"do_manifest_deploy,string" yaml:"do_manifest_deploy"`
 	DO_WATCH_IMAGE_TAG  bool   `json:"do_watch_image_tag" yaml:"do_watch_image_tag"`
+	KUBECONFIG          string `json:"kubeconfig" yaml:"kubeconfig"`
 	CONTEXT_K8s         string `json:"context_k8s" yaml:"context_k8s"`
 	NAMESPACE_K8s       string `json:"namespace_k8s" yaml:"namespace_k8s"`
 	DEPLOYMENT_NAME_K8s string `json:"deployment_name_k8s" yaml:"deployment_name_k8s"`
@@ -92,6 +101,63 @@ func (cfg *Config) SetParentLinks() {
 	cfg.SYNC.parentLink = cfg
 }
 
+func (cfg *Config) ReplaceConfigFields(content string) (isChanged bool, _ string, err error) {
+	contentString := strings.TrimSpace(content)
+	isChanged = false
+	pattern := `{{ThisConfig:(.*?)}}`
+	// Compile the regular expression
+	regex, err := regexp.Compile(pattern)
+	if err != nil {
+		return false, "", err
+	}
+	// Find all matches in the text
+	matches := regex.FindAllStringSubmatch(contentString, -1)
+
+	// iterate through matches
+	for _, match := range matches {
+		replacedText := match[0]
+		// fmt.Println(replacedText, match[1])
+		replacingText, err := cfg.getFieldValue(match[1])
+		if err != nil {
+			return false, "", err
+		}
+		// fmt.Println(value, err)
+		contentString = strings.ReplaceAll(contentString, replacedText, replacingText)
+		isChanged = true
+	}
+	return isChanged, contentString, nil
+}
+
+func (cfg *Config) getFieldValue(path string) (string, error) {
+	fields := strings.Split(path, ":")
+	current := reflect.ValueOf(*cfg)
+
+	for _, field := range fields {
+		// Check if the field is a valid struct field
+
+		// Get the field value
+		fieldValue := current.FieldByName(field)
+
+		// Check if the field exists
+		if !fieldValue.IsValid() {
+			return "", errors.New("field not found")
+		}
+
+		// Update 'current' to the value of the current field
+		current = fieldValue
+		if current.Kind() == reflect.String {
+			fieldValue := current.Interface()
+			strValue, ok := fieldValue.(string)
+			if !ok {
+				return "", errors.New("field not string")
+			}
+			return strValue, nil
+		}
+	}
+
+	return "", errors.New("field not found")
+}
+
 func init() {
 
 	USER, err = user.Current()
@@ -101,13 +167,18 @@ func init() {
 	}
 	checkInterval, err = strconv.Atoi(GetEnvVar("CHECK_INTERVAL", "300"))
 	if err != nil {
-		checkInterval = 300
+		checkInterval = 360
 	}
 
 	DefaultCommonConfig = CommonConfig{
 		JOB_NAME:       GetEnvVar("JOB_NAME", "default job"),
 		JOB_TYPE:       GetEnvVar("JOB_TYPE", "tags-prefixed"),
 		CHECK_INTERVAL: checkInterval,
+		VARIABLE_1:     GetEnvVar("CDDDRU_VARIABLE_1", ""),
+		VARIABLE_2:     GetEnvVar("CDDDRU_VARIABLE_2", ""),
+		VARIABLE_3:     GetEnvVar("CDDDRU_VARIABLE_3", ""),
+		VARIABLE_4:     GetEnvVar("CDDDRU_VARIABLE_4", ""),
+		VARIABLE_5:     GetEnvVar("CDDDRU_VARIABLE_5", ""),
 	}
 
 	DefaultGitConfig = GitConfig{
@@ -118,20 +189,23 @@ func init() {
 		GIT_BRANCH:         GetEnvVar("GIT_BRANCH", "main"),
 		GIT_TAG_PREFIX:     GetEnvVar("GIT_TAG_PREFIX", "v"),
 		GIT_START_TAG_FILE: GetEnvVar("GIT_START_TAG_FILE", "/usr/local/cdddru/start-tag"),
-		LOCAL_GIT_FOLDER:   GetEnvVar("LOCAL_GIT_FOLDER", "/tmp/git_local_repo"),
+		GIT_LOCAL_FOLDER:   GetEnvVar("GIT_LOCAL_FOLDER", "/tmp/git_local_repo"),
 	}
 
 	DefaultDockerConfig = DockerConfig{
-		DO_DOCKER_BUILD: strings.ToLower(GetEnvVar("DO_DOCKER_BUILD", "false")) == "true",
-		DOCKER_FILE:     GetEnvVar("DOCKER_FILE", "Dockerfile"),
-		DOCKER_IMAGE:    GetEnvVar("DOCKER_IMAGE", "docker.io/kuznetcovay/ddru"),
-		DOCKER_SERVER:   GetEnvVar("DOCKER_SERVER", "https://index.docker.io/v1/"),
-		DOCKER_USER:     GetEnvVar("DOCKER_USER", ""),
-		DOCKER_TOKEN:    GetEnvVar("DOCKER_TOKEN", ""),
+		DO_DOCKER_BUILD:  strings.ToLower(GetEnvVar("DO_DOCKER_BUILD", "false")) == "true",
+		DOCKER_PLATFORMS: strings.Split(GetEnvVar("DO_DOCKER_BUILD", "linux/amd64"), ","),
+		DOCKER_FILE:      GetEnvVar("DOCKER_FILE", "Dockerfile"),
+		DOCKER_IMAGE:     GetEnvVar("DOCKER_IMAGE", "docker.io/kuznetcovay/ddru"),
+		DOCKER_SERVER:    GetEnvVar("DOCKER_SERVER", "https://index.docker.io/v1/"),
+		DOCKER_USER:      GetEnvVar("DOCKER_USER", ""),
+		DOCKER_PASSWORD:  GetEnvVar("DOCKER_PASSWORD", ""),
 	}
 
 	DefaultDeployConfig = DeployConfig{
 		DO_MANIFEST_DEPLOY:  strings.ToLower(GetEnvVar("DO_MANIFEST_DEPLOY", "false")) == "true",
+		DO_WATCH_IMAGE_TAG:  strings.ToLower(GetEnvVar("DO_WATCH_IMAGE_TAG", "false")) == "false",
+		KUBECONFIG:          GetEnvVar("KUBECONFIG", "/run/configs/kubeconfig/config"),
 		MANIFESTS_K8S:       GetEnvVar("MANIFESTS_K8S", filepath.Join(USER.HomeDir, "app", "k8s_deployment.yaml")),
 		DEPLOYMENT_NAME_K8s: GetEnvVar("DEPLOYMENT_NAME_K8S", "main-site"),
 		NAMESPACE_K8s:       GetEnvVar("NAMESPACE_K8S", "test-app"),

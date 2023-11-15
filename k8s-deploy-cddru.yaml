@@ -113,7 +113,7 @@ spec:
           env:
             - name: DOCKER_HOST
               value: tcp://localhost:2375
-            - name: DOCKER_TOKEN
+            - name: DOCKER_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: dockerhub-token

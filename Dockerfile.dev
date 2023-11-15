@@ -29,11 +29,11 @@ RUN upx cdddru
 # Start a new image
 
 # FROM docker:24.0.6-git
-FROM kuznetcovay/cdddru:dev-v1.0.1
+FROM kuznetcovay/cdddru:dev-v1.0.3
 
 # Install necessary dependencies
 RUN apk update
-RUN apk --no-cache add ca-certificates curl git
+RUN apk --no-cache add ca-certificates curl git pass
 
 ARG TARGETARCH
 
@@ -69,7 +69,6 @@ ENV PATH=$GOPATH/bin:$GOROOT/bin:$PATH
 RUN apk --no-cache add tcpdump netcat-openbsd bind-tools openssh bash rsync
 
 RUN mkdir -p ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-RUN mkdir -p /.bind/configs
 
 WORKDIR /app
 

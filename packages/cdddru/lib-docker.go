@@ -20,8 +20,6 @@ import (
 	"github.com/docker/docker/pkg/archive"
 )
 
-
-
 func DockerImageBuild(dockerClient *client.Client, imageNameAndTag, contextPath, dockerfile, platform string, logger *Logger) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1200)
 	defer cancel()
@@ -109,11 +107,11 @@ func DockerImagePush(dockerClient *client.Client, imageNameAndTag, platform stri
 
 	var authConfig = registry.AuthConfig{
 		Username:      cfg.DOCKER.DOCKER_USER,
-		Password:      cfg.DOCKER.DOCKER_TOKEN,
+		Password:      cfg.DOCKER.DOCKER_PASSWORD,
 		ServerAddress: cfg.DOCKER.DOCKER_SERVER,
 	}
 
-	if len(cfg.DOCKER.DOCKER_TOKEN) == 0 {
+	if len(cfg.DOCKER.DOCKER_PASSWORD) == 0 {
 		pathToDockerConfig := filepath.Join(GetEnvVar("HOME", "/root"), ".docker", "config.json")
 		dockerConfig, err := os.ReadFile(pathToDockerConfig)
 		if err != nil {

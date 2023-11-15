@@ -11,7 +11,7 @@ func TestSetAuth(t *testing.T) {
 	t.Log(tempDir)
 	// Set up environment variables for testing
 	os.Setenv("DOCKER_SERVER", "example.com")
-	os.Setenv("DOCKER_TOKEN", "myToken")
+	os.Setenv("DOCKER_PASSWORD", "myToken")
 	os.Setenv("DOCKER_USER", "myUsername")
 
 	dockerConfig := DockerConfig{}
@@ -44,6 +44,6 @@ func TestSetAuth(t *testing.T) {
 
 	// Clean up environment variables
 	os.Unsetenv("DOCKER_SERVER")
-	os.Unsetenv("DOCKER_TOKEN")
+	os.Unsetenv("DOCKER_PASSWORD")
 	os.Unsetenv("DOCKER_USER")
 }

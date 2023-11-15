@@ -1,4 +1,37 @@
 apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-pv-main-site
+spec:
+  capacity:
+    storage: 5Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: nfs
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+  nfs:
+    server: 10.66.88.1
+    path: /var/nfs/main-site
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: test-app
+  name: nfs-pvc-main-site
+spec:
+  storageClassName: nfs
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  volumeName: nfs-pv-main-site
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: main-site
@@ -6,14 +39,17 @@ metadata:
   labels:
     app: main-site
 data:
+  RELEASE: v1.0.20
   IS_TLS: "false"
+  IS_USE_MEMCACHED: "true"
+  MEMCACHED_SERVER: "localhost:11211"
   NODE_ENV: "production"
-  DEBUG: "HTTP:DDRU"
-  POSTGRES_SECRETS: "PgSecret"
-  PGDATA: "/var/lib/postgresql/data/pgdata/"
-  ASSETS_PATH: "/home/node/app/ext-data/assets/"
+  DEBUG_PREFIX: "HTTP:DDRU"
+  # ASSETS_PATH: "/home/node/app/ext-data/assets/"
+  ASSETS_PATH: "/home/node/app/nfs-data/assets/"
   DEFAULT_ASSETS_PATH: "/home/node/app/assets/"
   BASE_URL: "/"
+  IS_METRICS_AUTH: "true"
 
 ---
 apiVersion: apps/v1
@@ -30,23 +66,37 @@ spec:
     metadata:
       labels:
         app: main-site
-        change_version: v1.0.10
+        lang: js
+        change_version: "{{ .Release }}"
     spec:
       containers:
-      # memcached container
+        # memcached container
         - name: memcached
           image: memcached:1.6.9
           resources:
             requests:
-              cpu: 150m
+              cpu: 100m
               memory: 256Mi
             limits:
               cpu: 256m
-              memory: 512Mi         
-        
-        # web app container        
-        - name: main-site          
-          image: kuznetcovay/ddru:v1.0.10
+              memory: 512Mi
+
+        # web app container
+        - name: main-site
+          image: "{{ .Image }}"
+
+          env:
+            - name: METRICS_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: metrics-secrets
+                  key: metrics_jwt_secret
+            - name: METRICS_LOGIN_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: metrics-secrets
+                  key: metrics_login_pwd
+
           envFrom:
             - configMapRef:
                 name: main-site
@@ -56,49 +106,98 @@ spec:
             - yarn
             - prod
           readinessProbe:
+            initialDelaySeconds: 1
+            periodSeconds: 5
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 3
             httpGet:
               path: /healthz
               port: 6085
-              initialDelaySeconds: 5
-              periodSeconds: 10
           livenessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
             httpGet:
-            path: /healthz
-            port: 6085
-            initialDelaySeconds: 15
-            periodSeconds: 20  
+              path: /healthz
+              port: 6085
           resources:
             requests:
               memory: "512Mi"
               cpu: "500m"
             limits:
-              memory: "1024Mi"
-              cpu: "1000m"
+              memory: "750Mi"
+              cpu: "750m"
           ports:
             - containerPort: 6085
           imagePullPolicy: Always
           volumeMounts:
-            - name: postgres-secrets
-              mountPath: "{{ .PgSecrets }}"
-              readOnly: true  
+            # - name: metrics-main-site-secrets
+            #   mountPath: /run/metrics-main-site-secrets
+            #   readOnly: true
+
+            # volume from nfs but firstly mounted on all hosts
             - name: site-data
               mountPath: /home/node/app/ext-data
               subPath: main
-              readOnly: true  
+              readOnly: true
+
+              # volume from nfs server (on master node)
+            - name: nfs-store-nider
+              mountPath: /home/node/app/nfs-data
+              subPath: main-site
+              readOnly: true
           securityContext:
             runAsUser: 0
             runAsGroup: 0
-            # allowPrivilegeEscalation: true          
-      # nodeSelector: 
+            # allowPrivilegeEscalation: true
+      # nodeSelector:
       #   kubernetes.io/hostname: srv-main
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: main-site-priority
+                    operator: In
+                    values:
+                      - "100"
+                      - "90"
+                      - "80"
+                      - "70"
       volumes:
-        - name: postgres-secrets
+        - name: metrics-main-site-secrets
           secret:
-            secretName: postgres-secrets
+            secretName: metrics-main-site-secrets
         - name: site-data
           hostPath:
             path: /mnt/k3snfs/sites
-            type: DirectoryOrCreate            
+            type: DirectoryOrCreate
+        - name: site-data-nfs-store-nider
+          persistentVolumeClaim:
+            claimName: nfs-pv-main-site
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: main-site-hpa
+  namespace: test-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: main-site
+  minReplicas: 1
+  maxReplicas: 3 # Adjust according to your requirements
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70 # Adjust the target CPU utilization percentage
 ---
 apiVersion: v1
 kind: Service

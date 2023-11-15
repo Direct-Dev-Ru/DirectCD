@@ -1,32 +1,92 @@
+# region: Volumes
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-pv-main-site
+spec:
+  capacity:
+    storage: 5Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: nfs
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+  nfs:
+    server: ${NFS_SERVER}
+    path: /var/nfs/main-site
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: cdddru-nfs-02
   namespace: test-app
+  name: nfs-pvc-main-site
+spec:
+  storageClassName: nfs
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 3500Mi
+  volumeName: nfs-pv-main-site
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-pv-cdddru
+spec:
+  capacity:
+    storage: 5Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: nfs
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+  nfs:
+    server: ${NFS_SERVER}
+    path: /var/nfs/cdddru
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: test-app
+  name: nfs-pvc-cdddru
 spec:
   accessModes:
-    - ReadWriteOnce
-  storageClassName: nfs-client
+    - ReadWriteMany
+  storageClassName: nfs
   resources:
     requests:
       storage: 512Mi
+  volumeName: nfs-pv-cdddru
+
+# endregion
+
 ---
+
+
+# MAIN DEPLOYMENT
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cd-ddru-02
+  name: cdddru-02
   namespace: test-app
   labels:
-    app: cd-ddru-02
-    release: v1.0.1
+    app: cdddru-02
+    release: v1.0.20
 spec:
   selector:
     matchLabels:
-      app: cd-ddru-02
+      app: cdddru-02
   template:
     metadata:
       labels:
-        app: cd-ddru-02
+        app: cdddru-02
     spec:
       containers:
         # docker_in_docker container
@@ -54,7 +114,7 @@ spec:
 
         # container with cdddru binary
         - name: cdddru
-          image: kuznetcovay/cdddru:v1.0.15
+          image: kuznetcovay/cdddru:v1.0.20
           resources:
             requests:
               cpu: 250m
@@ -62,32 +122,29 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
-          command: [
-              "/bin/sh",
-              "-c",
-              "/app/cdddru /app/jobs/config-main-ddru.yaml -v;",
-            ]
+          command:
+            ["/bin/sh", "-c", "/app/cdddru /app/nfs-store/config-main-ddru.yaml /app/nfs-store/config-main-ddru-assets.yaml -v;"]
 
           imagePullPolicy: Always
 
           volumeMounts:
             - name: dockerconfig
-              mountPath: /.bind/configs/dockerconfig
+              mountPath: /run/configs/dockerconfig
 
             - name: gitcred
-              mountPath: /.bind/configs/gitcred
+              mountPath: /run/configs/gitcred
 
             - name: kubeconfig
-              mountPath: /.bind/configs/kubeconfig
+              mountPath: /run/configs/kubeconfig
 
-              # volume from home nas server to sync main-site data
-            - name: site-data
-              mountPath: /app/ext-data
-              subPath: main
+              # volume from nfs server to sync main-site data
+            - name: main-site-data
+              mountPath: /app/nfs/main-site-data
+              subPath: main-site
 
-              # volume from nfs server (on master node) to store jobs files
-            - name: nfs-store-02
-              mountPath: /app/ext-nfs-store
+              # volume from nfs server to store jobs files
+            - name: nfs-pvc-cdddru
+              mountPath: /app/nfs-store
               subPath: cdddru-jobs
 
           securityContext:
@@ -98,27 +155,31 @@ spec:
             - name: DOCKER_HOST
               value: tcp://localhost:2375
 
-            - name: DOCKER_TOKEN
+            - name: DOCKER_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: dockerhub-token
                   key: token
+
             - name: DOCKER_USER
               valueFrom:
                 secretKeyRef:
                   name: dockerhub-token
                   key: username
+
             - name: DOCKER_SERVER
               valueFrom:
                 secretKeyRef:
                   name: dockerhub-token
                   key: server
+
             - name: GIT_CRED
               valueFrom:
                 secretKeyRef:
                   name: gitcred
                   key: id_rsa
-            - name: KUBE_CRED
+
+            - name: KUBE_CONFIG
               valueFrom:
                 secretKeyRef:
                   name: kubeconfig
@@ -145,11 +206,11 @@ spec:
             path: /tmp/dind/storage
             type: DirectoryOrCreate
 
-        - name: site-data
-          hostPath:
-            path: /mnt/k3snfs/sites
-            type: DirectoryOrCreate
-
-        - name: nfs-store-02
+        - name: main-site-data
           persistentVolumeClaim:
-            claimName: cdddru-nfs-02
+            claimName: nfs-pvc-main-site
+
+        - name: nfs-store
+          persistentVolumeClaim:
+            claimName: nfs-pvc-cdddru
+# endregion

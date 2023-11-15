@@ -179,7 +179,10 @@ func getOneConfig(configPath string) (*Config, error) {
 		return nil, nil
 	}
 
-	configFile, _ := ReplaceEnvs(string(configFileBytes))
+	configFile, err := ReplaceEnvs(string(configFileBytes))
+	if err != nil {
+		return nil, err
+	}
 
 	var config Config
 	// Parse the config file
@@ -194,10 +197,31 @@ func getOneConfig(configPath string) (*Config, error) {
 	case ".json":
 		err = json.Unmarshal([]byte(configFile), &config)
 	}
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %v", err)
 	}
+
+	isChanged, changedConfigFile, err := config.ReplaceConfigFields(configFile)
+	if err != nil {
+		return nil, err
+	}
+	if isChanged {
+		// PrintDebug(NewLogger(os.Stdout, os.Stderr, DebugLevel, "init work"), "%s", newContent)
+		switch fileExt {
+		case ".yaml":
+			err = yaml.Unmarshal([]byte(changedConfigFile), &config)
+
+		case ".json":
+			err = json.Unmarshal([]byte(changedConfigFile), &config)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse changed config file: %v", err)
+		}
+
+	}
+
+	// os.Exit(0)
+
 	if Mode != "development" && config.COMMON.CHECK_INTERVAL < 120 {
 		config.COMMON.CHECK_INTERVAL = 120
 	}

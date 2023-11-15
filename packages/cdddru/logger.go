@@ -172,7 +172,7 @@ func CheckIfErrorFmt(logger *Logger, err, errfmt error, isExit bool) error {
 		panic(errfmt)
 	} else {
 		logger.Error(errfmt.Error())
-		return nil
+		return errfmt
 	}
 
 }

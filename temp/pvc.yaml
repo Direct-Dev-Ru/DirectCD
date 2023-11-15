@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-pv-main-site
+spec:
+  capacity:
+    storage: 5Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: nfs
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+  nfs:
+    server: ${NFS_SERVER}
+    path: /var/nfs/main-site
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: test-app
+  name: nfs-pvc-main-site
+spec:
+  storageClassName: nfs
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 3500Mi
+  volumeName: nfs-pv-main-site
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-pv-cdddru
+spec:
+  capacity:
+    storage: 5Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: nfs
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+  nfs:
+    server: ${NFS_SERVER}
+    path: /var/nfs/cdddru
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: test-app
+  name: nfs-pvc-cdddru
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: nfs
+  resources:
+    requests:
+      storage: 512Mi   
+  volumeName: nfs-pv-cdddru    

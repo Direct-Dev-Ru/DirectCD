@@ -53,6 +53,22 @@ func RunOneJob(config *Config, wg *sync.WaitGroup) {
 	CheckIfError(logger, err, false)
 
 	if config.DEPLOY.DO_MANIFEST_DEPLOY {
+		// make some auth checks ...
+		// if we set path to file? containing kubeconfig in job file (Deploy-->kubeconfig)
+		// then we use it as our config
+
+		if len(config.DEPLOY.KUBECONFIG) > 0 {
+			if isExist, isDir, err := IsPathExists(config.DEPLOY.KUBECONFIG); err == nil && isExist && !isDir {
+				os.Setenv("KUBECONFIG", config.DEPLOY.KUBECONFIG)
+				PrintInfo(logger, "kubeconfig saved to file: %v", config.DEPLOY.KUBECONFIG)
+			} else {
+				if len(os.Getenv("KUBE_CONFIG")) == 0 {
+					CheckIfError(logger, fmt.Errorf("env variable KUBECONFIG not sets. Job %s failed", config.COMMON.JOB_NAME), true)
+				}
+				err := os.WriteFile("/run/configs/kubeconfig", []byte(os.Getenv("KUBE_CONFIG")), 0400)
+				CheckIfError(logger, fmt.Errorf("error write kubeconfig file: %w", err), true)
+			}
+		}
 		// Here we get from cluster tag version it is currently running
 		currentClusterImageTag, errK8s = GetImageTag(config)
 		CheckIfError(logger, errK8s, false)
@@ -144,24 +160,28 @@ func RunOneJob(config *Config, wg *sync.WaitGroup) {
 				Branch: plumbing.ReferenceName(config.GIT.branchName),
 				Force:  true,
 			})
-			if err != nil {
-				CheckIfError(logger, fmt.Errorf("failed checkout %s branch: %v", config.GIT.GIT_BRANCH, err), true)
+			if e := CheckIfErrorFmt(logger, err, fmt.Errorf("failed checkout %s branch: %w", config.GIT.GIT_BRANCH, err), false); e != nil {
+				return
 			}
 
 			// updating git repository
 			// err = config.GIT.Pull(gitWorkTree, logger)
 			err = config.GIT.CliPull(logger)
-			if err != nil {
-				CheckIfError(logger, fmt.Errorf("git pull failed: %s", err.Error()), true)
+			if e := CheckIfErrorFmt(logger, err, fmt.Errorf("git pull (external) failed: %w", err), false); e != nil {
+				return
 			}
 
 			// getting all tags from repository after updating
 			repoTags, err := GetTagsFromGitRepo(gitRepository, config.GIT.GIT_TAG_PREFIX)
-			CheckIfError(logger, err, true)
+			if e := CheckIfErrorFmt(logger, err, fmt.Errorf("get tags frm git failed: %w", err), false); e != nil {
+				return
+			}
 
 			// getting max tag with specified tag prefix in updated repo to apply
 			nMaxTagCandidate, strMaxTagCandidate, err := GetMaxTag(repoTags, config.GIT.GIT_MAX_TAG, config.GIT.GIT_TAG_PREFIX)
-			CheckIfErrorFmt(logger, err, fmt.Errorf("getting max tag failed: %w", err), true)
+			if e := CheckIfErrorFmt(logger, err, fmt.Errorf("getting max tag failed: %w", err), false); e != nil {
+				return
+			}
 
 			if retryApply > 0 && nMaxTagCandidate != nMaxTag {
 				retryApply = 0
@@ -190,52 +210,56 @@ func RunOneJob(config *Config, wg *sync.WaitGroup) {
 			totalWaitSeconds := 0
 
 			if bDoUpgrade {
-				PrintInfo(logger, "starting upgrade for %s release (commit hash: %s)...", strMaxTag, strMaxTagCommitHash)
+				PrintInfo(logger, "starting upgrade for %s release (commit hash: %s)", strMaxTag, strMaxTagCommitHash)
 
 				// checkout to true tag
-
 				tagRefName := plumbing.ReferenceName(fmt.Sprintf("refs/tags/%s", strMaxTag))
-
 				refTag, err := gitRepository.ResolveRevision(plumbing.Revision(tagRefName))
-				if err != nil {
-					newError := fmt.Errorf("error get reference for tag: %v", err)
-					CheckIfError(logger, newError, true)
+				if e := CheckIfErrorFmt(logger, err, fmt.Errorf("error get reference for tag: %v", err), false); e != nil {
+					return
 				}
+
 				err = gitWorkTree.Checkout(&git.CheckoutOptions{
 					Hash: *refTag,
 				})
-				CheckIfErrorFmt(logger, err, fmt.Errorf("error checkout to tag: %v", err), true)
-
+				if e := CheckIfErrorFmt(logger, err, fmt.Errorf("error checkout to tag: %v", err), false); e != nil {
+					return
+				}
 				PrintInfo(logger, "successfully checkout to tag %s hash: %v\n", strMaxTag, refTag)
 
 				// final docker image name with tag
 				imageNameTag := fmt.Sprintf("%s:%s", config.DOCKER.DOCKER_IMAGE, strMaxTag)
 
-				// TODO: move this parameter to config
-				var platforms []string = []string{"linux/arm64", "linux/amd64"}
-				
+				// define platforms for building
+				var platforms []string = config.DOCKER.DOCKER_PLATFORMS
+				if len(platforms) == 0 {
+					platforms = DefaultDockerConfig.DOCKER_PLATFORMS
+				}
+
 				// if we say in config to do docker build
 				if config.DOCKER.DO_DOCKER_BUILD {
-
 					config.DOCKER.SetAuth("/run/configs/dockerconfig/")
+
 					PrintInfo(logger, "starting building image %s", imageNameTag)
 
 					// we use buildx to make multy-arch image
-					err = config.DOCKER.DockerImageBuildx(imageNameTag, config.GIT.LOCAL_GIT_FOLDER, platforms, logger)
+					err = config.DOCKER.DockerImageBuildx(imageNameTag, config.GIT.GIT_LOCAL_FOLDER, platforms, logger)
 					if e := CheckIfErrorFmt(logger, err, fmt.Errorf("building image %s failed: %w", imageNameTag, err), true); e != nil {
 						PrintInfo(logger, "job %s failed and will be closed", config.COMMON.JOB_NAME)
 						return
 					}
-					gitCurrentTag = strMaxTag
-					err = os.WriteFile(pathToStoreStartTag, []byte(gitCurrentTag), 0600)
-					CheckIfErrorFmt(logger, err, fmt.Errorf("write to file with start image failed: %w", err), false)
-
+					if !(config.SYNC.DO_SUBFOLDER_SYNC || config.DEPLOY.DO_MANIFEST_DEPLOY) {
+						//  we say that new tag upgraded if no other steps in our pipeline
+						gitCurrentTag = strMaxTag
+						err = os.WriteFile(pathToStoreStartTag, []byte(gitCurrentTag), 0600)
+						CheckIfErrorFmt(logger, err, fmt.Errorf("write to file with start image failed: %w", err), false)
+					}
 					PrintInfo(logger, "successfully build image %s", imageNameTag)
 
 					// building docker image for different platforms
 					// for _, platform := range platforms {
 					// 	PrintInfo(logger, "starting build %s docker image for %s platform", imageNameTag, platform)
-					// 	err = DockerImageBuild(cli, imageNameTag, config.GIT.LOCAL_GIT_FOLDER, config.DOCKER.DOCKER_FILE, platform, logger)
+					// 	err = DockerImageBuild(cli, imageNameTag, config.GIT.GIT_LOCAL_FOLDER, config.DOCKER.DOCKER_FILE, platform, logger)
 					// 	if err != nil {
 					// 		newError := fmt.Errorf("failed to build docker image %s for platform %s: %w", imageNameTag, platform, err)
 					// 		CheckIfError(logger, newError, true)
@@ -253,15 +277,24 @@ func RunOneJob(config *Config, wg *sync.WaitGroup) {
 
 				// rsync data on target_folder from git_sub_folder if specified
 				if config.SYNC.DO_SUBFOLDER_SYNC {
-					PrintInfo(logger, "start sync subfolder for tag %s", strMaxTag)
-					err = Rsync(config.SYNC.TARGET_FOLDER, filepath.Join(config.GIT.LOCAL_GIT_FOLDER, config.SYNC.GIT_SUB_FOLDER))
-					CheckIfError(logger, err, true)
-					PrintInfo(logger, "successfully sync subfolder for tag %s", strMaxTag)
+					PrintInfo(logger, "start sync %s for tag %s",
+						filepath.Join(config.GIT.GIT_LOCAL_FOLDER, config.SYNC.GIT_SUB_FOLDER), strMaxTag)
+					err = Rsync(config.SYNC.TARGET_FOLDER, filepath.Join(config.GIT.GIT_LOCAL_FOLDER, config.SYNC.GIT_SUB_FOLDER))
+					if e := CheckIfErrorFmt(logger, err, fmt.Errorf("sync %s for tag %s failed: %w",
+						filepath.Join(config.GIT.GIT_LOCAL_FOLDER, config.SYNC.GIT_SUB_FOLDER),
+						strMaxTag, err), true); e != nil {
+
+						PrintInfo(logger, "job %s failed and will be closed", config.COMMON.JOB_NAME)
+						return
+					}
+					PrintInfo(logger, "successfully sync %s for tag %s",
+						filepath.Join(config.GIT.GIT_LOCAL_FOLDER, config.SYNC.GIT_SUB_FOLDER), strMaxTag)
 				}
 
 				if config.DEPLOY.DO_MANIFEST_DEPLOY {
 					// now it's time to get final manifest for k8s/k3s deployment from given template
 					PrintInfo(logger, "start applying release %s", strMaxTag)
+					os.Chdir(CurrentWD)
 					manifestToApply, err := GenerateManifest(config.DEPLOY.MANIFESTS_K8S,
 						struct {
 							Release   string
@@ -273,19 +306,26 @@ func RunOneJob(config *Config, wg *sync.WaitGroup) {
 							PgSecrets: "/root/.config/pg",
 						})
 					if e := CheckIfError(logger, err, false); e != nil {
-						PrintInfo(logger, "job %s is completed with error", config.COMMON.JOB_NAME)
+						PrintInfo(logger, "job %s is completed with error and will be closed", config.COMMON.JOB_NAME)
+						return
 					}
 
 					// switch to given context
 					_, err = RunExternalCmd("", fmt.Sprintf("error while switching to context %s", config.DEPLOY.CONTEXT_K8s),
 						"kubectx", config.DEPLOY.CONTEXT_K8s)
-					CheckIfError(logger, err, true)
+					if e := CheckIfError(logger, err, false); e != nil {
+						PrintInfo(logger, "job %s is completed with error and will be closed", config.COMMON.JOB_NAME)
+						return
+					}
 
 					//  now apply it in given cluster
 					// command := []string{"kubectl", "apply", "-f", "-", "--dry-run=client")}
 					command := []string{"kubectl", "apply", "-f", "-"}
 					outManifestApply, err := RunExternalCmd(manifestToApply, "error while applying manifest", command[0], command[1:]...)
-					CheckIfError(logger, err, true)
+					if e := CheckIfError(logger, err, false); e != nil {
+						PrintInfo(logger, "job %s is completed with error and will be closed", config.COMMON.JOB_NAME)
+						return
+					}
 
 					// waiting some time for changes take effect
 					checkIntervals := GetIntervals(config.COMMON.CHECK_INTERVAL)
@@ -335,16 +375,23 @@ func RunOneJob(config *Config, wg *sync.WaitGroup) {
 
 				if currentSHA != originalSHA {
 					var newConfig *Config
-					newConfig, err = getOneConfig(config.COMMON.JOB_PATH)
-					if err != nil {
-						CheckIfErrorFmt(logger, err, fmt.Errorf("read current config for job %s: %w", config.COMMON.JOB_NAME, err), false)
-						PrintInfo(logger, "job %s completes", config.COMMON.JOB_NAME)
-						return
-					}
-					config = newConfig
-					if !config.COMMON.IS_ACTIVE {
-						PrintInfo(logger, "job %s completes", config.COMMON.JOB_NAME)
-						return
+					for {
+						newConfig, err = getOneConfig(config.COMMON.JOB_PATH)
+						if err != nil {
+							if e := CheckIfErrorFmt(logger, err,
+								fmt.Errorf("read current config for job %s: %w", config.COMMON.JOB_NAME, err), false); e != nil {
+								PrintInfo(logger, "job %s completes", config.COMMON.JOB_NAME)
+								return
+							}
+						}
+						config = newConfig
+						// suspend job if now it is not active in job's config file
+						if !config.COMMON.IS_ACTIVE {
+							PrintInfo(logger, "job %s is not active - suspend for resume ...", config.COMMON.JOB_NAME)
+							time.Sleep(time.Duration(config.COMMON.CHECK_INTERVAL) * time.Second)
+							continue
+						}
+						break
 					}
 					wg.Add(1)
 					go RunOneJob(config, wg)
@@ -362,6 +409,17 @@ func RunOneJob(config *Config, wg *sync.WaitGroup) {
 		// TODO: do variant of job execution then git repo do not cloned but
 		// we watch for sha of docker image in deployment and compare with this one in cluster
 		_ = !config.GIT.DO_GIT_CLONE
+
+		// get sha256 digest from pod:
+		// kubectl get pods -l app=main-site -o=name | cut -d/ -f2 | xargs -I {} kubectl get pod {} -n test-app -o json | jq '.status.containerStatuses[] | { "imageID": .imageID }' | grep kuznetcovay/ddru | grep -o 'sha256:[a-f0-9]*' | sed 's/sha256://'
+
+		// get tags from docker registry:
+
+		// export DOCKER_USERNAME=kuznetcovay
+		// export TAG=v1.0.14
+		// export DOCKER_PASSWORD=dckr_pat_cBOB...
+		// export DOCKER_SERVER=https://hub.docker.com/v2
+		// curl --silent --header "Authorization: JWT ${DOCKER_PASSWORD}" ${DOCKER_SERVER}/repositories/${DOCKER_USERNAME}/ddru/tags/ | jq '.' | jq '.results[] | {name: .name, digest: .digest, updated: .last_updated}' | jq '. | select(.name == "'"$TAG"'")';	#| grep -A3 -B1 "\"name\": \"${TAG}\""
 	}
 
 }

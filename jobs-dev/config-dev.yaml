@@ -1,8 +1,13 @@
 Common:
   is_active: true
-  job_name: "main ddru dev (yaml)"
+  job_name: "main_ddru_dev_yaml"
   job_type: tags-prefixed
   check_interval: 20
+  variable_1: var_value_1
+  variable_2: var_value_2
+  variable_3: var_value_3
+  variable_4: var_value_4
+  variable_5: var_value_5
 
 Git:
   do_git_clone: true
@@ -16,7 +21,7 @@ Git:
   git_max_tag: v99.99.99
   git_target_tag: 
   git_start_tag_file: /tmp/cdddru/tag-main-ddru
-  local_git_folder: /tmp/dev-repo-main-ddru
+  git_local_folder: /tmp/dev-repo-main-ddru
   git_commit: ""
 
 Docker:
@@ -26,17 +31,21 @@ Docker:
   docker_platforms:
     - linux/amd64
     - linux/arm64
-  docker_server: https://index.docker.io/v1/
-  docker_token: "{{$DOCKER_TOKEN}}"
-  docker_user: kuznetcovay
+  # docker_server: https://index.docker.io/v1/
+  docker_server: "{{$DOCKER_SERVER}}"
+  docker_password: "{{$DOCKER_PASSWORD}}"
+  docker_user: "{{$DOCKER_USER}}"
 
 Deploy:
-  do_manifest_deploy: false
+  do_manifest_deploy: true
   do_watch_image_tag: false
+  kubeconfig: "/run/configs/kubeconfig/config"
   context_k8s: default
   namespace_k8s: test-app
   deployment_name_k8s: main-site
+  # manifests_k8s: "{{ThisConfig:GIT:GIT_LOCAL_FOLDER}}/deployments.yaml"
   manifests_k8s: ./manifests/k8s-main-site-manifests.yaml
+  
 
 Sync:
   do_subfolder_sync: false

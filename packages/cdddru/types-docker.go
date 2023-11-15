@@ -15,7 +15,7 @@ type DockerConfig struct {
 	DOCKER_PLATFORMS []string `json:"docker_platforms" yaml:"docker_platforms"`
 	DOCKER_SERVER    string   `json:"docker_server" yaml:"docker_server"`
 	DOCKER_USER      string   `json:"docker_user" yaml:"docker_user"`
-	DOCKER_TOKEN     string   `json:"docker_token" yaml:"docker_token"`
+	DOCKER_PASSWORD  string   `json:"docker_password" yaml:"docker_password"`
 	parentLink       *Config
 }
 
@@ -29,11 +29,23 @@ func (dkrcfg *DockerConfig) SomeMethod(logger *Logger) (err error) {
 
 func (dkrcfg *DockerConfig) SetAuth(dockerConfigPath string) (err error) {
 
+	// sets auth file from env variables:
+	// DOCKER_SERVER
+	// DOCKER_PASSWORD
+	// DOCKER_USER
+	dockerServer := Tiif(len(dkrcfg.DOCKER_SERVER) > 0, dkrcfg.DOCKER_SERVER, os.Getenv("DOCKER_SERVER")).(string)
+	dockerToken := Tiif(len(dkrcfg.DOCKER_PASSWORD) > 0, dkrcfg.DOCKER_PASSWORD, os.Getenv("DOCKER_PASSWORD")).(string)
+	dockerUser := Tiif(len(dkrcfg.DOCKER_USER) > 0, dkrcfg.DOCKER_USER, os.Getenv("DOCKER_USER")).(string)
+
+	if dockerToken != "" && dockerUser != "" {
+		os.Setenv("DOCKER_PASSWORD", dockerToken)
+		os.Setenv("DOCKER_USER", dockerUser)
+	}
+
 	if isExist, isDir, err := IsPathExists(filepath.Join(os.Getenv("HOME"), ".docker", "config.json")); isExist && !isDir {
 		return err
 	}
 
-	// logger := dkrcfg.parentLink.logger
 	if dockerConfigPath == "" {
 		dockerConfigPath = "/run/configs/dockerconfig/"
 	}
@@ -46,24 +58,16 @@ func (dkrcfg *DockerConfig) SetAuth(dockerConfigPath string) (err error) {
 		return nil
 	}
 
-	// sets auth file from env variables:
-	// DOCKER_SERVER
-	// DOCKER_TOKEN
-	// DOCKER_USER
-	dockerServer := os.Getenv("DOCKER_SERVER")
-	dockerToken := os.Getenv("DOCKER_TOKEN")
-	dockerUser := os.Getenv("DOCKER_USER")
-
 	if len(dockerServer) == 0 || len(dockerToken) == 0 || len(dockerUser) == 0 {
 		return fmt.Errorf("not enough values in variables for docker authentication")
 	}
+
 	authStr := dockerUser + ":" + dockerToken
 	base64Auth := base64.StdEncoding.EncodeToString([]byte(authStr))
 
 	authEntries := map[string]string{dockerServer: base64Auth}
 
 	dataToWrite, err := PrettyJsonEncodeToString(dockerConfig{Auths: authEntries})
-
 	if err != nil {
 		return err
 	}

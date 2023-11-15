@@ -1,4 +1,37 @@
 apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-pv-main-site
+spec:
+  capacity:
+    storage: 5Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: nfs
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+  nfs:
+    server: 10.66.88.1
+    path: /var/nfs/main-site
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: test-app
+  name: nfs-pvc-main-site
+spec:
+  storageClassName: nfs
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  volumeName: nfs-pv-main-site
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: main-site
@@ -6,14 +39,17 @@ metadata:
   labels:
     app: main-site
 data:
+  RELEASE: v1.0.20
   IS_TLS: "false"
+  IS_USE_MEMCACHED: "true"
+  MEMCACHED_SERVER: "localhost:11211"
   NODE_ENV: "production"
-  DEBUG: "HTTP:DDRU"
-  POSTGRES_SECRETS: "{{ .PgSecrets }}"
-  PGDATA: "/var/lib/postgresql/data/pgdata/"
-  ASSETS_PATH: "/home/node/app/ext-data/assets/"
+  DEBUG_PREFIX: "HTTP:DDRU"
+  # ASSETS_PATH: "/home/node/app/ext-data/assets/"
+  ASSETS_PATH: "/home/node/app/nfs-data/assets/"
   DEFAULT_ASSETS_PATH: "/home/node/app/assets/"
   BASE_URL: "/"
+  IS_METRICS_AUTH: "true"
 
 ---
 apiVersion: apps/v1
@@ -30,6 +66,7 @@ spec:
     metadata:
       labels:
         app: main-site
+        lang: js
         change_version: "{{ .Release }}"
     spec:
       containers:
@@ -47,6 +84,19 @@ spec:
         # web app container
         - name: main-site
           image: "{{ .Image }}"
+
+          env:
+            - name: METRICS_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: metrics-secrets
+                  key: metrics_jwt_secret
+            - name: METRICS_LOGIN_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: metrics-secrets
+                  key: metrics_login_pwd
+
           envFrom:
             - configMapRef:
                 name: main-site
@@ -78,18 +128,26 @@ spec:
               memory: "512Mi"
               cpu: "500m"
             limits:
-              memory: "1024Mi"
-              cpu: "1000m"
+              memory: "750Mi"
+              cpu: "750m"
           ports:
             - containerPort: 6085
           imagePullPolicy: Always
           volumeMounts:
-            - name: postgres-secrets
-              mountPath: "{{ .PgSecrets }}"
-              readOnly: true
+            # - name: metrics-main-site-secrets
+            #   mountPath: /run/metrics-main-site-secrets
+            #   readOnly: true
+
+            # volume from nfs but firstly mounted on all hosts
             - name: site-data
               mountPath: /home/node/app/ext-data
               subPath: main
+              readOnly: true
+
+              # volume from nfs server (on master node)
+            - name: nfs-store-nider
+              mountPath: /home/node/app/nfs-data
+              subPath: main-site
               readOnly: true
           securityContext:
             runAsUser: 0
@@ -97,14 +155,49 @@ spec:
             # allowPrivilegeEscalation: true
       # nodeSelector:
       #   kubernetes.io/hostname: srv-main
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: main-site-priority
+                    operator: In
+                    values:
+                      - "100"
+                      - "90"
+                      - "80"
+                      - "70"
       volumes:
-        - name: postgres-secrets
+        - name: metrics-main-site-secrets
           secret:
-            secretName: postgres-secrets
+            secretName: metrics-main-site-secrets
         - name: site-data
           hostPath:
             path: /mnt/k3snfs/sites
             type: DirectoryOrCreate
+        - name: site-data-nfs-store-nider
+          persistentVolumeClaim:
+            claimName: nfs-pv-main-site
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: main-site-hpa
+  namespace: test-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: main-site
+  minReplicas: 1
+  maxReplicas: 3 # Adjust according to your requirements
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70 # Adjust the target CPU utilization percentage
 ---
 apiVersion: v1
 kind: Service

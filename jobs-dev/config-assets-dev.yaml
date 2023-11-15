@@ -13,7 +13,7 @@ Git:
   git_start_tag: assets-0.0.0
   git_max_tag: assets-99.99.99
   git_start_tag_file: /tmp/cdddru/tag-main-ddru-assets
-  local_git_folder: /tmp/dev-repo-main-ddru-assets
+  git_local_folder: /tmp/dev-repo-main-ddru-assets
   git_commit: ""
 
 Deploy:
@@ -28,7 +28,7 @@ Docker:
   docker_file: 
   docker_image: 
   docker_server: 
-  docker_token: 
+  DOCKER_PASSWORD: 
   docker_user: 
 
 Sync:

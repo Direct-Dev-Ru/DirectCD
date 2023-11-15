@@ -271,7 +271,6 @@ func IsPathExists(path string) (isExist bool, isDir bool, err error) {
 	return false, false, err
 }
 
-
 func CopyFile(src, dst string) error {
 	source, err := os.Open(src)
 	if err != nil {

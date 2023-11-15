@@ -33,7 +33,7 @@ FROM --platform=$BUILDPLATFORM docker:24.0.6-git
 
 # Install necessary dependencies
 RUN apk update
-RUN apk --no-cache add ca-certificates curl git
+RUN apk --no-cache add ca-certificates curl git pass
 
 ARG TARGETARCH
 
@@ -68,7 +68,6 @@ RUN git clone https://github.com/ahmetb/kubectx /opt/kubectx && \
 RUN apk --no-cache add tcpdump netcat-openbsd bind-tools openssh bash rsync
 
 RUN mkdir -p ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-RUN mkdir -p /.bind/configs
 
 WORKDIR /app
 
@@ -83,4 +82,10 @@ COPY ./manifests /app/manifests/
 # Set the entrypoint to run the Go application by default
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 # CMD ["./cdddru", "-f", "./jobs/config.json"]
+
+# wget https://github.com/docker/docker-credential-helpers/releases/download/v0.8.0/docker-credential-pass-v0.8.0.linux-amd64      
+
+# mv docker-credential-pass-v0.8.0.linux-amd64 /usr/bin/docker-credential-pass 
+
+# chmod +x /usr/bin/docker-credential-pass
 
