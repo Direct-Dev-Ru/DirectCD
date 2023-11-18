@@ -39,7 +39,7 @@ Docker:
 Deploy:
   do_manifest_deploy: true
   do_watch_image_tag: false
-  kubeconfig: "/run/configs/kubeconfig/config"
+  kubeconfig: "/root/.kube/config"
   context_k8s: default
   namespace_k8s: test-app
   deployment_name_k8s: main-site

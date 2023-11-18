@@ -5,7 +5,7 @@ services:
     # image: kuznetcovay/dind:v1.0.3
     image: docker:dind
     container_name: docker
-    command: dockerd --tls=false --insecure-registry=myregistry.example.com:5000 -H tcp://0.0.0.0:2375
+    command: dockerd --tls=false --insecure-registry=registry.srv.local:5000 -H tcp://0.0.0.0:2375
     volumes:
       - ${HOME}/.docker/config.json:/app/dockerconfig/config.json:ro
       - dind-storage:/var/lib/docker

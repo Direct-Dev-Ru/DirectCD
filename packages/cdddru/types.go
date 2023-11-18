@@ -67,7 +67,7 @@ type CommonConfig struct {
 
 type DeployConfig struct {
 	DO_MANIFEST_DEPLOY  bool   `json:"do_manifest_deploy,string" yaml:"do_manifest_deploy"`
-	DO_WATCH_IMAGE_TAG  bool   `json:"do_watch_image_tag" yaml:"do_watch_image_tag"`
+	DO_WATCH_IMAGE_TAG  bool   `json:"do_watch_image_tag,string" yaml:"do_watch_image_tag"`
 	KUBECONFIG          string `json:"kubeconfig" yaml:"kubeconfig"`
 	CONTEXT_K8s         string `json:"context_k8s" yaml:"context_k8s"`
 	NAMESPACE_K8s       string `json:"namespace_k8s" yaml:"namespace_k8s"`

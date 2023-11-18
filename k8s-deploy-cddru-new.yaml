@@ -1,74 +1,73 @@
 # region: Volumes
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: nfs-pv-main-site
-spec:
-  capacity:
-    storage: 5Gi
-  volumeMode: Filesystem
-  accessModes:
-    - ReadWriteMany
-  persistentVolumeReclaimPolicy: Recycle
-  storageClassName: nfs
-  mountOptions:
-    - hard
-    - nfsvers=4.1
-  nfs:
-    server: ${NFS_SERVER}
-    path: /var/nfs/main-site
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  namespace: test-app
-  name: nfs-pvc-main-site
-spec:
-  storageClassName: nfs
-  accessModes:
-    - ReadWriteMany
-  resources:
-    requests:
-      storage: 3500Mi
-  volumeName: nfs-pv-main-site
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: nfs-pv-cdddru
-spec:
-  capacity:
-    storage: 5Gi
-  volumeMode: Filesystem
-  accessModes:
-    - ReadWriteMany
-  persistentVolumeReclaimPolicy: Recycle
-  storageClassName: nfs
-  mountOptions:
-    - hard
-    - nfsvers=4.1
-  nfs:
-    server: ${NFS_SERVER}
-    path: /var/nfs/cdddru
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  namespace: test-app
-  name: nfs-pvc-cdddru
-spec:
-  accessModes:
-    - ReadWriteMany
-  storageClassName: nfs
-  resources:
-    requests:
-      storage: 512Mi
-  volumeName: nfs-pv-cdddru
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+#   name: nfs-pv-main-site
+# spec:
+#   capacity:
+#     storage: 5Gi
+#   volumeMode: Filesystem
+#   accessModes:
+#     - ReadWriteMany
+#   persistentVolumeReclaimPolicy: Recycle
+#   storageClassName: nfs
+#   mountOptions:
+#     - hard
+#     - nfsvers=4.1
+#   nfs:
+#     server: ${NFS_SERVER}
+#     path: /var/nfs/main-site
+# ---
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   namespace: test-app
+#   name: nfs-pvc-main-site
+# spec:
+#   storageClassName: nfs
+#   accessModes:
+#     - ReadWriteMany
+#   resources:
+#     requests:
+#       storage: 3500Mi
+#   volumeName: nfs-pv-main-site
+# ---
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+#   name: nfs-pv-cdddru
+# spec:
+#   capacity:
+#     storage: 5Gi
+#   volumeMode: Filesystem
+#   accessModes:
+#     - ReadWriteMany
+#   persistentVolumeReclaimPolicy: Recycle
+#   storageClassName: nfs
+#   mountOptions:
+#     - hard
+#     - nfsvers=4.1
+#   nfs:
+#     server: ${NFS_SERVER}
+#     path: /var/nfs/cdddru
+# ---
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   namespace: test-app
+#   name: nfs-pvc-cdddru
+# spec:
+#   accessModes:
+#     - ReadWriteMany
+#   storageClassName: nfs
+#   resources:
+#     requests:
+#       storage: 512Mi
+#   volumeName: nfs-pv-cdddru
 
-# endregion
+# # endregion
 
----
-
+# ---
 
 # MAIN DEPLOYMENT
 apiVersion: apps/v1
@@ -92,13 +91,19 @@ spec:
         # docker_in_docker container
         - name: dind
           image: docker:dind
+          command:
+            [
+              "/bin/sh",
+              "-c",
+              "dockerd --tls=false --insecure-registry=registry.srv.local:5000 -H tcp://0.0.0.0:2375",
+            ]
           resources:
             requests:
               cpu: 500m
               memory: 512Mi
             limits:
-              cpu: 1000m
-              memory: 1000Mi
+              cpu: 950m
+              memory: 950Mi
           volumeMounts:
             - name: dockerconfig
               mountPath: /root/.docker
@@ -114,16 +119,20 @@ spec:
 
         # container with cdddru binary
         - name: cdddru
-          image: kuznetcovay/cdddru:v1.0.20
+          image: kuznetcovay/cdddru:v1.0.21
           resources:
             requests:
               cpu: 250m
               memory: 256Mi
             limits:
-              cpu: 500m
-              memory: 512Mi
+              cpu: 950m
+              memory: 950Mi
           command:
-            ["/bin/sh", "-c", "/app/cdddru /app/nfs-store/config-main-ddru.yaml /app/nfs-store/config-main-ddru-assets.yaml -v;"]
+            - "sh"
+            - "-c"
+            - |
+              /bin/sh /usr/local/bin/docker-entrypoint.sh || true ;
+              /app/cdddru /app/nfs-store/jobs/config-main-ddru.yaml /app/nfs-store/jobs/config-main-ddru-assets.yaml -v;
 
           imagePullPolicy: Always
 
@@ -139,12 +148,12 @@ spec:
 
               # volume from nfs server to sync main-site data
             - name: main-site-data
-              mountPath: /app/nfs/main-site-data
+              mountPath: /app/nfs-store/main-site
               subPath: main-site
 
               # volume from nfs server to store jobs files
             - name: nfs-pvc-cdddru
-              mountPath: /app/nfs-store
+              mountPath: /app/nfs-store/jobs
               subPath: cdddru-jobs
 
           securityContext:
@@ -186,7 +195,7 @@ spec:
                   key: config
 
       nodeSelector:
-        kubernetes.io/hostname: n150-netbook
+        kubernetes.io/hostname: opiz3-1
 
       volumes:
         - name: dockerconfig
@@ -210,7 +219,7 @@ spec:
           persistentVolumeClaim:
             claimName: nfs-pvc-main-site
 
-        - name: nfs-store
+        - name: nfs-pvc-cdddru
           persistentVolumeClaim:
             claimName: nfs-pvc-cdddru
 # endregion
