@@ -1,5 +1,5 @@
 # Start with a base Go image for compilation
-FROM --platform=$BUILDPLATFORM golang:1.21.3-bullseye AS builder
+FROM golang:1.21.3-bullseye AS builder
 
 RUN apt update -y && apt install upx -y
 
@@ -28,7 +28,7 @@ RUN upx cdddru
 
 # Start a new image
 
-FROM --platform=$BUILDPLATFORM docker:24.0.6-git
+FROM docker:24.0.6-git
 # FROM kuznetcovay/cdddru:dev-v1.0.1
 
 # Install necessary dependencies
@@ -38,13 +38,13 @@ RUN apk --no-cache add ca-certificates curl git pass
 ARG TARGETARCH
 
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
-        curl -LO "https://golang.org/dl/go1.21.3.linux-amd64.tar.gz" && \
-        tar -C /usr/local -xzf go1.21.3.linux-amd64.tar.gz && \
-        rm go1.21.3.linux-amd64.tar.gz; \
+    curl -LO "https://golang.org/dl/go1.21.3.linux-amd64.tar.gz" && \
+    tar -C /usr/local -xzf go1.21.3.linux-amd64.tar.gz && \
+    rm go1.21.3.linux-amd64.tar.gz; \
     elif [ "$TARGETARCH" = "arm64" ]; then \
-        curl -LO "https://golang.org/dl/go1.21.3.linux-arm64.tar.gz" && \
-        tar -C /usr/local -xzf go1.21.3.linux-arm64.tar.gz && \
-        rm go1.21.3.linux-arm64.tar.gz; \
+    curl -LO "https://golang.org/dl/go1.21.3.linux-arm64.tar.gz" && \
+    tar -C /usr/local -xzf go1.21.3.linux-arm64.tar.gz && \
+    rm go1.21.3.linux-arm64.tar.gz; \
     # Add more elif statements for other architectures as needed
     fi
 

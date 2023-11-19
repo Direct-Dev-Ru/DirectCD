@@ -77,7 +77,7 @@ metadata:
   namespace: test-app
   labels:
     app: cdddru-02
-    release: v1.0.20
+    release: v1.0.25
 spec:
   selector:
     matchLabels:
@@ -119,7 +119,7 @@ spec:
 
         # container with cdddru binary
         - name: cdddru
-          image: kuznetcovay/cdddru:v1.0.21
+          image: kuznetcovay/cdddru:v1.0.25
           resources:
             requests:
               cpu: 250m
@@ -195,7 +195,8 @@ spec:
                   key: config
 
       nodeSelector:
-        kubernetes.io/hostname: opiz3-1
+        # kubernetes.io/hostname: opiz3-1
+        kubernetes.io/hostname: n150-netbook
 
       volumes:
         - name: dockerconfig

@@ -7,7 +7,7 @@ metadata:
   labels:
     app: main-site
 data:
-  RELEASE: v1.0.20
+  RELEASE: "{{ .Release }}"
   IS_TLS: "false"
   IS_USE_MEMCACHED: "true"
   MEMCACHED_SERVER: "localhost:11211"
